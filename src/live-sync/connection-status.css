@@ -1,0 +1,32 @@
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connection-status__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #f0a04b;
+}
+
+.connection-status__dot.is-connected {
+  background: #65d6ad;
+}
+
+.connection-status strong,
+.connection-status small {
+  display: block;
+}
+
+.connection-status strong {
+  color: #f0f6fc;
+  font-size: 0.74rem;
+}
+
+.connection-status small {
+  margin-top: 2px;
+  color: #7d8998;
+  font-size: 0.64rem;
+}

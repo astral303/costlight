@@ -1,0 +1,92 @@
+.pricing-menu {
+  position: relative;
+  z-index: 20;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 10px auto;
+  color: #7d8998;
+  font-size: 0.68rem;
+}
+
+.pricing-menu summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.pricing-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.pricing-menu summary::after {
+  color: #9aa7b6;
+  content: "⌄";
+  font-size: 0.8rem;
+}
+
+.pricing-menu[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.pricing-menu summary:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid #65d6ad;
+  outline-offset: 3px;
+}
+
+.pricing-menu summary strong {
+  color: #f0a04b;
+  font-size: inherit;
+  font-weight: 650;
+}
+
+.pricing-menu__content {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  width: min(360px, calc(100vw - 36px));
+  padding: 13px;
+  border-radius: 10px;
+  background: #18222d;
+}
+
+.pricing-menu__content p {
+  margin: 0 0 11px;
+  color: #9aa7b6;
+  line-height: 1.45;
+}
+
+.pricing-menu__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pricing-menu button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: #081611;
+  background: #65d6ad;
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.pricing-menu button.secondary {
+  color: #aeb9c6;
+  background: #202b37;
+}
+
+.pricing-menu button:focus-visible {
+  outline: 2px solid #f0f6fc;
+  outline-offset: 2px;
+}
+
+.pricing-menu button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}

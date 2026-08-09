@@ -1,0 +1,10 @@
+.cost-chart {
+  width: 100%;
+  height: 340px;
+}
+
+@media (max-width: 720px) {
+  .cost-chart {
+    height: 300px;
+  }
+}
