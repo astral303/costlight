@@ -1,0 +1,209 @@
+# Kimi Cost Dashboard
+
+Kimi Cost Dashboard turns local Kimi Code usage records into a live, replay-safe cost report. It reads Kimi session files without modifying them, stores only derived usage metadata in SQLite, and serves the dashboard on loopback by default.
+
+## Start the dashboard
+
+Prerequisite: [mise](https://mise.jdx.dev/) is installed.
+
+```powershell
+mise install
+mise run start
+```
+
+Open <http://127.0.0.1:4637>. `mise run start` builds the frontend, imports current history, starts the watcher, and serves the production dashboard.
+Press `Q` in the terminal to stop the dashboard cleanly. `Ctrl+C` remains supported.
+
+Windows users can run the equivalent launcher:
+
+```powershell
+.\Start-KimiCostDashboard.ps1
+```
+
+For frontend hot reload and automatic API restarts during development:
+
+```powershell
+mise run dev
+```
+
+## What the report means
+
+- **New spend** includes one canonical row per provider request.
+- **Inherited/replayed usage** remains inspectable but is excluded from cost.
+- **Main and subagent spend** follows the canonical occurrence's agent directory and the parent graph in `state.json`.
+- **Cache costs** remain separate for uncached input, cache creation, cache reads, and output.
+- **Unpriced calls** produce warnings and a blank cost, never a misleading `$0.00`.
+
+The initial local validation imported 3,391 usage occurrences as 3,212 canonical calls, excluding 179 fork/replay appearances. Re-running the importer inserted zero duplicate rows.
+
+## Commands
+
+| Command | Result |
+|---|---|
+| `mise run start` | Build and run the production dashboard |
+| `mise run dev` | Run the API watcher and Vite development server |
+| `mise run check` | Run strict TypeScript checking |
+| `mise run test` | Run unit, integration, and component tests |
+| `mise run build` | Build the browser application into `dist/` |
+| `mise run verify` | Run type-checking, tests, and the production build |
+| `bun run import` | Import/reconcile history once and print aggregate diagnostics |
+| `bun run reprice` | Explicitly refresh rates and recalculate all historical calls |
+| `bun run audit` | Compare local totals with ccusage through Bun's package runner |
+
+All JavaScript and TypeScript executables run through the mise-pinned Bun toolchain. `bun.lock` and `mise.lock` pin the resolved dependencies and Bun artifacts.
+
+## Data sources and locations
+
+The importer discovers current Kimi files under:
+
+```text
+~/.kimi-code/sessions/<workspace>/<session>/
+├── state.json
+└── agents/<agent-id>/wire.jsonl
+```
+
+It also checks `~/.kimi`, supports the legacy session-level `wire.jsonl` layout, and honors `KIMI_CODE_HOME` or `--kimi-root`.
+
+On Windows, the default application data is:
+
+```text
+%LOCALAPPDATA%\KimiCostDashboard\
+├── dashboard.sqlite
+├── pricing-models.dev.json
+└── pricing-litellm.json
+```
+
+Use `--data-dir <path>` to choose another location. The application never writes inside a Kimi data root.
+
+## Runtime options
+
+Pass options after the mise task separator:
+
+```powershell
+mise run start -- --privacy --port 4700
+```
+
+| Option | Behavior |
+|---|---|
+| `--data-dir <path>` | Override the SQLite and pricing-cache directory |
+| `--kimi-root <path>` | Use one explicit Kimi home directory |
+| `--host <host>` | Override the default `127.0.0.1` binding |
+| `--port <port>` | Override port `4637` |
+| `--privacy` | Hide work directories, titles, and workspace names in the UI |
+| `--no-watch` | Disable filesystem events; periodic reconciliation remains active |
+| `--access-token <token>` | Authenticate a deliberately non-loopback server |
+
+Non-loopback binding is refused unless the token contains at least 16 characters. Browsers use HTTP Basic authentication: the username can be any value and the password is the configured access token. API clients may send the same value as a Bearer token. Exposing the dashboard to another machine should be treated as exposing local session metadata.
+
+`KIMI_COST_DASHBOARD_TOKEN` supplies the token without placing it on the command line.
+
+## Pricing behavior
+
+Resolution order is:
+
+1. Exact raw-model user override.
+2. Direct Moonshot provider rate from the last-good models.dev catalog.
+3. Direct Moonshot entry from LiteLLM.
+4. Bundled Kimi fallback rates.
+5. Visible unpriced warning.
+
+Remote catalogs refresh when stale and then at most every 24 hours. A failed refresh retains normalized rates and the last-good raw response. When a catalog omits cache-creation pricing, cache creation uses normal uncached-input pricing and the rate is labeled inferred.
+
+Catalog changes apply to new calls. Existing calls retain their stored rate until the user selects **Reprice history** or runs `bun run reprice`.
+
+### Pricing overrides
+
+Create `pricing-overrides.json` in the application data directory. Values are USD per token, matching ccusage-compatible field names:
+
+```json
+{
+  "pricingOverrides": {
+    "moonshot-ai/kimi-k3": {
+      "inputCostPerToken": 0.000003,
+      "outputCostPerToken": 0.000015,
+      "cacheReadInputTokenCost": 0.0000003,
+      "cacheCreationInputTokenCost": 0.000003,
+      "effectiveAt": "2026-08-01T00:00:00Z"
+    }
+  }
+}
+```
+
+Omitting either cache field falls back to the override's normal input rate. Override provenance remains visible in the model table.
+
+## Privacy and security
+
+The database stores token counts, model identity, timestamps, canonical request identifiers, rate provenance, and session/agent attribution. It does not store:
+
+- Prompts or model output.
+- Tool arguments or tool output.
+- Raw wire lines.
+- API keys, `config.toml`, or provider credentials.
+
+The server sends a restrictive Content Security Policy, refuses remote binding without authentication, and streams only invalidation versions over SSE. The browser refetches aggregate JSON; raw Kimi records are never sent.
+
+## Safe recovery and rebuild
+
+SQLite checkpoints and source fingerprints make restarts idempotent. If the derived database is damaged or you want an independent rebuild, leave the existing files untouched and start with a new data directory:
+
+```powershell
+$rebuildDirectory = Join-Path $env:LOCALAPPDATA 'KimiCostDashboard-Rebuild'
+mise run start -- --data-dir $rebuildDirectory
+```
+
+Verify the totals in the rebuilt dashboard before archiving the old application-data directory. Kimi source files do not need repair or modification.
+
+When pricing is offline, the app uses the last-good catalog or bundled Kimi rates. The health endpoint and UI show the failure until a refresh succeeds.
+
+## API
+
+Read endpoints:
+
+- `GET /api/health`
+- `GET /api/summary`
+- `GET /api/timeseries`
+- `GET /api/sessions`
+- `GET /api/sessions/:id/agents`
+- `GET /api/models`
+- `GET /api/options`
+- `GET /api/events` (SSE)
+
+Explicit actions:
+
+- `POST /api/rescan`
+- `POST /api/pricing/refresh`
+- `POST /api/pricing/reprice`
+
+Summary, timeseries, session, and model endpoints accept the same `from`, `to`, `workspace`, `session`, `model`, `agentType`, `agentId`, `bucket`, and `timeZone` filters.
+
+## Feature-grouped layout
+
+Implementation files are grouped by product concept, not technical type:
+
+```text
+src/
+├── app/                 # runtime composition and project lifecycle
+├── session-import/      # discovery through persistence and rescan API
+├── call-accounting/     # occurrence identity, canonical ledger, audit
+├── pricing/             # storage, catalogs, routes, warning UI and styles
+├── dashboard/           # queries, contracts, routes, React UI and styles
+└── live-sync/           # SSE, health, browser connection UI and styles
+```
+
+`tests/` mirrors these feature directories. There are no global `styles`, `controllers`, `models`, `routes`, `db`, `server`, or test-type directories.
+
+## Verification
+
+```powershell
+mise run verify
+```
+
+The suite covers append checkpoints, partial JSON, concurrent appends, rewrites, source deletion, new subagents, fork deduplication, canonical reassignment, historical rate preservation, offline pricing, timezone/DST buckets, report reconciliation, filter propagation, and SSE-triggered refresh.
+
+The optional ccusage audit never runs during normal ingestion:
+
+```powershell
+bun run audit
+```
+
+It runs `bunx ccusage kimi daily --json`, which downloads ccusage into Bun's package cache on first use when needed. The audit reports replay exclusions rather than hiding the expected difference. The compatibility reference is ccusage commit [`033c1f7631f603fc939fdc85163e8203f0084f83`](https://github.com/ccusage/ccusage/tree/033c1f7631f603fc939fdc85163e8203f0084f83); ccusage is not a runtime dependency, and no ccusage source file is copied into this project.
