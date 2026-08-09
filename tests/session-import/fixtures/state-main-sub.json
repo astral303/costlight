@@ -1,0 +1,18 @@
+{
+  "createdAt": "2026-08-01T12:00:00.000Z",
+  "updatedAt": "2026-08-01T12:05:00.000Z",
+  "title": "Synthetic cost test",
+  "workDir": "C:\\synthetic\\workspace",
+  "agents": {
+    "main": {
+      "type": "main",
+      "parentAgentId": null,
+      "homedir": "C:\\synthetic\\session\\agents\\main"
+    },
+    "agent-0": {
+      "type": "sub",
+      "parentAgentId": "main",
+      "homedir": "C:\\synthetic\\session\\agents\\agent-0"
+    }
+  }
+}
