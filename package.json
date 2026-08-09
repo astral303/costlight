@@ -1,0 +1,35 @@
+{
+  "name": "kimi-cost-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/app/development.ts",
+    "start": "bun src/app/start.ts",
+    "import": "bun src/app/import-history.ts",
+    "audit": "bun src/app/audit.ts",
+    "reprice": "bun src/app/reprice-history.ts",
+    "check": "bunx --bun tsc --noEmit",
+    "test": "bun test",
+    "build": "bunx --bun vite build",
+    "verify": "bun run check && bun test && bun run build"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "echarts": "^6.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.11.2",
+    "@testing-library/react": "^16.3.2",
+    "@types/bun": "^1.3.14",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "happy-dom": "^20.11.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  }
+}
