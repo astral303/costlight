@@ -58,7 +58,7 @@ const pricingRefreshTimer = setInterval(() => {
   });
 }, PRICING_REFRESH_INTERVAL_MS);
 
-console.log(`Kimi Cost Dashboard listening on ${server.url.origin}`);
+console.log(`Costlight listening on ${server.url.origin}`);
 
 const stopListeningForTerminalExit = registerTerminalExitShortcut(requestShutdown);
 const shutdown = createApplicationShutdown({
@@ -79,7 +79,7 @@ function requestShutdown(): void {
   }
   shutdownRequest = shutdown();
   void shutdownRequest.then(
-    () => console.log("Kimi Cost Dashboard stopped."),
+    () => console.log("Costlight stopped."),
     (error) => {
       console.error(`Shutdown failed: ${errorMessage(error)}`);
       process.exitCode = 1;
@@ -96,7 +96,7 @@ async function handleRequest(request: Request): Promise<Response> {
     if (!isAuthorized(request)) {
       return withSecurityHeaders(Response.json(
         { error: "Unauthorized" },
-        { status: 401, headers: { "WWW-Authenticate": "Basic realm=\"Kimi Cost Dashboard\"" } },
+        { status: 401, headers: { "WWW-Authenticate": "Basic realm=\"Costlight\"" } },
       ));
     }
 

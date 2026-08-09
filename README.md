@@ -1,8 +1,10 @@
-# Kimi Cost Dashboard
+# Costlight
 
-Kimi Cost Dashboard turns local Kimi Code usage records into a live, replay-safe cost report. It reads Kimi session files without modifying them, stores only derived usage metadata in SQLite, and serves the dashboard on loopback by default.
+> Local, replay-safe API spend tracking for Kimi Code.
 
-## Start the dashboard
+Costlight reads local Kimi Code usage records without modifying them, stores only derived usage metadata in SQLite, and serves the dashboard on loopback by default.
+
+## Start Costlight
 
 Prerequisite: [mise](https://mise.jdx.dev/) is installed.
 
@@ -17,7 +19,7 @@ Press `Q` in the terminal to stop the dashboard cleanly. `Ctrl+C` remains suppor
 Windows users can run the equivalent launcher:
 
 ```powershell
-.\Start-KimiCostDashboard.ps1
+.\Start-Costlight.ps1
 ```
 
 For frontend hot reload and automatic API restarts during development:
@@ -33,8 +35,6 @@ mise run dev
 - **Main and subagent spend** follows the canonical occurrence's agent directory and the parent graph in `state.json`.
 - **Cache costs** remain separate for uncached input, cache creation, cache reads, and output.
 - **Unpriced calls** produce warnings and a blank cost, never a misleading `$0.00`.
-
-The initial local validation imported 3,391 usage occurrences as 3,212 canonical calls, excluding 179 fork/replay appearances. Re-running the importer inserted zero duplicate rows.
 
 ## Commands
 
@@ -64,16 +64,19 @@ The importer discovers current Kimi files under:
 
 It also checks `~/.kimi`, supports the legacy session-level `wire.jsonl` layout, and honors `KIMI_CODE_HOME` or `--kimi-root`.
 
-On Windows, the default application data is:
+Default application-data directories are:
 
-```text
-%LOCALAPPDATA%\KimiCostDashboard\
-├── dashboard.sqlite
-├── pricing-models.dev.json
-└── pricing-litellm.json
-```
+| Platform | Directory |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Costlight\` |
+| macOS | `~/Library/Application Support/Costlight/` |
+| Linux and other Unix systems | `${XDG_DATA_HOME:-~/.local/share}/costlight/` |
 
-Use `--data-dir <path>` to choose another location. The application never writes inside a Kimi data root.
+Costlight follows the XDG data-directory convention on Unix. It does not use `XDG_CACHE_HOME` because the SQLite ledger and historical price assignments are persistent application data, not disposable cache files.
+
+The application-data directory contains `dashboard.sqlite` and downloaded pricing catalogs.
+
+Existing installations automatically reuse their pre-Costlight data directory when no Costlight directory exists. Use `--data-dir <path>` to choose another location. Costlight never writes inside a Kimi data root.
 
 ## Runtime options
 
@@ -95,7 +98,7 @@ mise run start -- --privacy --port 4700
 
 Non-loopback binding is refused unless the token contains at least 16 characters. Browsers use HTTP Basic authentication: the username can be any value and the password is the configured access token. API clients may send the same value as a Bearer token. Exposing the dashboard to another machine should be treated as exposing local session metadata.
 
-`KIMI_COST_DASHBOARD_TOKEN` supplies the token without placing it on the command line.
+`COSTLIGHT_TOKEN` supplies the token without placing it on the command line.
 
 ## Pricing behavior
 
@@ -147,7 +150,7 @@ The server sends a restrictive Content Security Policy, refuses remote binding w
 SQLite checkpoints and source fingerprints make restarts idempotent. If the derived database is damaged or you want an independent rebuild, leave the existing files untouched and start with a new data directory:
 
 ```powershell
-$rebuildDirectory = Join-Path $env:LOCALAPPDATA 'KimiCostDashboard-Rebuild'
+$rebuildDirectory = Join-Path $env:LOCALAPPDATA 'Costlight-Rebuild'
 mise run start -- --data-dir $rebuildDirectory
 ```
 

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
@@ -32,7 +33,7 @@ export function parseRuntimeOptions(
   environment: Readonly<Record<string, string | undefined>> = Bun.env,
 ): RuntimeOptions {
   const options: MutableRuntimeOptions = {
-    accessToken: environment.KIMI_COST_DASHBOARD_TOKEN,
+    accessToken: environment.COSTLIGHT_TOKEN,
     dataDirectory: undefined,
     host: "127.0.0.1",
     kimiRoots: resolveKimiRoots(environment),
@@ -83,7 +84,7 @@ export function parseRuntimeOptions(
   });
 
   if (!isLoopbackHost(parsedOptions.host) && parsedOptions.accessToken === undefined) {
-    throw new Error("Non-loopback binding requires --access-token or KIMI_COST_DASHBOARD_TOKEN.");
+    throw new Error("Non-loopback binding requires --access-token or COSTLIGHT_TOKEN.");
   }
 
   return parsedOptions;
@@ -120,14 +121,48 @@ function resolveDefaultDataDirectory(
   environment: Readonly<Record<string, string | undefined>>,
 ): string {
   if (process.platform === "win32") {
-    return join(environment.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"), "KimiCostDashboard");
+    return selectCompatibleDataDirectory(
+      environment.LOCALAPPDATA ?? join(homedir(), "AppData", "Local"),
+      "Costlight",
+      "KimiCostDashboard",
+    );
   }
 
   if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "KimiCostDashboard");
+    return selectCompatibleDataDirectory(
+      join(homedir(), "Library", "Application Support"),
+      "Costlight",
+      "KimiCostDashboard",
+    );
   }
 
-  return join(environment.XDG_DATA_HOME ?? join(homedir(), ".local", "share"), "kimi-cost-dashboard");
+  return selectCompatibleDataDirectory(
+    resolveXdgDataHome(environment),
+    "costlight",
+    "kimi-cost-dashboard",
+  );
+}
+
+function resolveXdgDataHome(
+  environment: Readonly<Record<string, string | undefined>>,
+): string {
+  const configuredDirectory = environment.XDG_DATA_HOME;
+  return configuredDirectory !== undefined && isAbsolute(configuredDirectory)
+    ? configuredDirectory
+    : join(homedir(), ".local", "share");
+}
+
+export function selectCompatibleDataDirectory(
+  parentDirectory: string,
+  currentName: string,
+  legacyName: string,
+  pathExists: (path: string) => boolean = existsSync,
+): string {
+  const currentDirectory = join(parentDirectory, currentName);
+  const legacyDirectory = join(parentDirectory, legacyName);
+  return pathExists(currentDirectory) || !pathExists(legacyDirectory)
+    ? currentDirectory
+    : legacyDirectory;
 }
 
 function resolveEnvironmentPath(value: string): string {

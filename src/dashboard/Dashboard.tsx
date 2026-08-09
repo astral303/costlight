@@ -40,7 +40,7 @@ export function Dashboard() {
   return (
     <main className="dashboard-shell">
       <header className="dashboard-header">
-        <h1>Kimi cost dashboard</h1>
+        <h1>Costlight</h1>
         <div className="dashboard-header__actions">
           <ConnectionStatus
             isConnected={dashboard.isConnected}

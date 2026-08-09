@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "kimi-cost-dashboard",
+      "name": "costlight",
       "dependencies": {
         "chokidar": "^5.0.0",
         "echarts": "^6.1.0",

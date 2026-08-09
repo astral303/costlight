@@ -1,6 +1,7 @@
 {
-  "name": "kimi-cost-dashboard",
+  "name": "costlight",
   "version": "0.1.0",
+  "description": "Local, replay-safe API spend tracking for Kimi Code.",
   "private": true,
   "type": "module",
   "scripts": {

@@ -96,7 +96,7 @@ describe("SessionImporter", () => {
 });
 
 async function createFixtureRoot() {
-  const root = await mkdtemp(join(tmpdir(), "kimi-cost-dashboard-test-"));
+  const root = await mkdtemp(join(tmpdir(), "costlight-test-"));
   temporaryDirectories.push(root);
   const sessionDirectory = join(root, "sessions", "workspace", "session-1");
   const agentDirectory = join(sessionDirectory, "agents", "main");

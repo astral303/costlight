@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]] $DashboardArguments
+    [string[]] $CostlightArguments
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,7 +12,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "mise install failed with exit code $LASTEXITCODE."
 }
 
-& $miseCommand.Source run start -- @DashboardArguments
+& $miseCommand.Source run start -- @CostlightArguments
 if ($LASTEXITCODE -ne 0) {
-    throw "Dashboard startup failed with exit code $LASTEXITCODE."
+    throw "Costlight startup failed with exit code $LASTEXITCODE."
 }

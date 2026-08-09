@@ -15,7 +15,7 @@ import { useEffect, useRef } from "react";
 import type { TimeseriesPoint } from "./contracts";
 import "./cost-chart.css";
 
-const CHART_GROUP = "kimi-cost-dashboard";
+const CHART_GROUP = "costlight";
 let areChartsConnected = false;
 
 echarts.use([

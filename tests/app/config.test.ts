@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseRuntimeOptions } from "../../src/app/config";
+import { parseRuntimeOptions, selectCompatibleDataDirectory } from "../../src/app/config";
 
 const environment = {
   LOCALAPPDATA: "C:\\synthetic-app-data",
@@ -10,7 +10,7 @@ describe("parseRuntimeOptions", () => {
     const options = parseRuntimeOptions([], environment);
 
     expect(options.host).toBe("127.0.0.1");
-    expect(options.databasePath).toContain("KimiCostDashboard");
+    expect(options.databasePath).toContain("Costlight");
     expect(options.watchFiles).toBe(true);
   });
 
@@ -32,5 +32,16 @@ describe("parseRuntimeOptions", () => {
       "a-secure-test-token",
     ], environment);
     expect(options.host).toBe("0.0.0.0");
+  });
+
+  test("reuses the existing pre-Costlight data directory", () => {
+    const selectedDirectory = selectCompatibleDataDirectory(
+      "application-data",
+      "Costlight",
+      "PreviousName",
+      (path) => path.endsWith("PreviousName"),
+    );
+
+    expect(selectedDirectory).toContain("PreviousName");
   });
 });
