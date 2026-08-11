@@ -12,6 +12,12 @@ import * as echarts from "echarts/core";
 import type { EChartsCoreOption as EChartsOption, EChartsType as ECharts } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
+import {
+  captureChartZoom,
+  type ChartZoomRange,
+  type ChartZoomWindow,
+  restoreChartZoom,
+} from "./chart-zoom";
 import type { TimeseriesPoint } from "./contracts";
 import "./cost-chart.css";
 
@@ -34,6 +40,7 @@ echarts.use([
 interface CostChartProps {
   kind: "bucket" | "cumulative";
   points: readonly TimeseriesPoint[];
+  zoomContext: string;
 }
 
 interface ChartRow {
@@ -46,9 +53,13 @@ interface ChartRow {
   uncachedInput: number;
 }
 
-export function CostChart({ kind, points }: CostChartProps) {
+export function CostChart({ kind, points, zoomContext }: CostChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ECharts | null>(null);
+  const pointsRef = useRef(points);
+  const zoomContextRef = useRef(zoomContext);
+  const zoomWindowRef = useRef<ChartZoomWindow | null>(null);
+  pointsRef.current = points;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -62,18 +73,34 @@ export function CostChart({ kind, points }: CostChartProps) {
       echarts.connect(CHART_GROUP);
       areChartsConnected = true;
     }
+    const rememberZoom = (event: unknown) => {
+      const range = readDataZoomRange(event, pointsRef.current.length);
+      if (range !== null) {
+        zoomWindowRef.current = captureChartZoom(pointsRef.current, range.start, range.end);
+      }
+    };
+    chart.on("datazoom", rememberZoom);
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(container);
     return () => {
       resizeObserver.disconnect();
+      chart.off("datazoom", rememberZoom);
       chart.dispose();
       chartRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    chartRef.current?.setOption(createChartOption(points, kind), { notMerge: true });
-  }, [kind, points]);
+    const shouldResetChart = zoomContextRef.current !== zoomContext;
+    if (shouldResetChart) {
+      zoomContextRef.current = zoomContext;
+      zoomWindowRef.current = null;
+    }
+    const zoomRange = restoreChartZoom(points, zoomWindowRef.current);
+    chartRef.current?.setOption(createChartOption(points, kind, zoomRange), {
+      notMerge: shouldResetChart,
+    });
+  }, [kind, points, zoomContext]);
 
   return (
     <div
@@ -88,6 +115,7 @@ export function CostChart({ kind, points }: CostChartProps) {
 export function createChartOption(
   points: readonly TimeseriesPoint[],
   kind: CostChartProps["kind"],
+  zoomRange?: ChartZoomRange,
 ): EChartsOption {
   const prefix = kind === "cumulative" ? "cumulative" : "";
   const dimension = (component: "CacheCreation" | "CacheRead" | "Input" | "Output" | "Total") => {
@@ -134,6 +162,7 @@ export function createChartOption(
         handleStyle: { color: "#65d6ad" },
         showDetail: false,
         textStyle: { color: "#738092", fontSize: 9 },
+        ...zoomRange,
       },
     ],
     grid: { bottom: 54, containLabel: true, left: 8, right: 18, top: 46 },
@@ -221,6 +250,33 @@ export function createChartOption(
       splitLine: { lineStyle: { color: "#19232e" } },
       type: "value",
     },
+  };
+}
+
+export function readDataZoomRange(
+  event: unknown,
+  pointCount: number,
+): { end: number; start: number } | null {
+  if (!isRecord(event)) {
+    return null;
+  }
+  const candidate = Array.isArray(event.batch) ? event.batch[0] : event;
+  if (!isRecord(candidate)) {
+    return null;
+  }
+  if (typeof candidate.start === "number" && typeof candidate.end === "number") {
+    return { end: candidate.end, start: candidate.start };
+  }
+  if (typeof candidate.startValue !== "number" || typeof candidate.endValue !== "number") {
+    return null;
+  }
+  if (pointCount <= 1) {
+    return { end: 100, start: 0 };
+  }
+  const lastPointIndex = pointCount - 1;
+  return {
+    end: (candidate.endValue / lastPointIndex) * 100,
+    start: (candidate.startValue / lastPointIndex) * 100,
   };
 }
 

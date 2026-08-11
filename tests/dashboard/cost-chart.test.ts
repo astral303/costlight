@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { DataZoomComponentOption, ToolboxComponentOption } from "echarts/components";
-import { createChartOption } from "../../src/dashboard/CostChart";
+import { captureChartZoom, restoreChartZoom } from "../../src/dashboard/chart-zoom";
+import { createChartOption, readDataZoomRange } from "../../src/dashboard/CostChart";
 import type { TimeseriesPoint } from "../../src/dashboard/contracts";
 
 describe("cost chart interactions", () => {
@@ -48,6 +49,42 @@ describe("cost chart interactions", () => {
     expect(series.every(({ step, type }) => step === "start" && type === "line")).toBe(true);
     expect(tooltip.formatter([{ dataIndex: 0 }])).toContain("Uncached input: $1.25");
     expect(tooltip.formatter([{ dataIndex: 0 }])).toContain("Total: $1.75");
+  });
+
+  test("keeps a newest-edge zoom pinned as data arrives", () => {
+    const initialPoints = [1_000, 2_000, 3_000, 4_000].map(createPoint);
+    const window = captureChartZoom(initialPoints, 50, 100);
+    const refreshedPoints = [...initialPoints, createPoint(5_000)];
+
+    expect(restoreChartZoom(refreshedPoints, window)).toEqual({
+      endValue: 4,
+      startValue: 3,
+    });
+  });
+
+  test("reads slider and drag-selection zoom ranges", () => {
+    expect(readDataZoomRange({ start: 25, end: 75 }, 5)).toEqual({ start: 25, end: 75 });
+    expect(readDataZoomRange({
+      batch: [{ startValue: 1, endValue: 3 }],
+    }, 5)).toEqual({ start: 25, end: 75 });
+  });
+
+  test("keeps a historical zoom on the same observations", () => {
+    const initialPoints = [1_000, 2_000, 3_000, 4_000].map(createPoint);
+    const window = captureChartZoom(initialPoints, 25, 75);
+    const refreshedPoints = [...initialPoints, createPoint(5_000)];
+
+    expect(restoreChartZoom(refreshedPoints, window)).toEqual({
+      endValue: 2,
+      startValue: 1,
+    });
+  });
+
+  test("lets a full-range chart continue showing all new data", () => {
+    const points = [1_000, 2_000, 3_000].map(createPoint);
+
+    expect(captureChartZoom(points, 0, 100)).toBeNull();
+    expect(restoreChartZoom(points, null)).toBeUndefined();
   });
 });
 

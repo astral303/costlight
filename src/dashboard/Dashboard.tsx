@@ -122,13 +122,21 @@ export function Dashboard() {
               : `${dashboard.timeseries?.resolution ?? "automatic"} buckets · idle time removed`}
           />
           <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
-            <CostChart kind="bucket" points={dashboard.timeseries?.points ?? []} />
+            <CostChart
+              kind="bucket"
+              points={dashboard.timeseries?.points ?? []}
+              zoomContext={dashboard.queryString}
+            />
           </Suspense>
         </article>
         <article className="dashboard-panel chart-panel">
           <PanelHeading title="Cumulative spend" detail="Idle time removed" />
           <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
-            <CostChart kind="cumulative" points={dashboard.timeseries?.points ?? []} />
+            <CostChart
+              kind="cumulative"
+              points={dashboard.timeseries?.points ?? []}
+              zoomContext={dashboard.queryString}
+            />
           </Suspense>
         </article>
       </section>
