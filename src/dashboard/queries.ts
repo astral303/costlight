@@ -334,6 +334,7 @@ export function queryFilterOptions(
       title: privacyMode ? `Session ${index + 1}` : title ?? session_id,
     }),
     value: session_id,
+    workspace: workspace_key,
   }));
   const models = queryRows<{ raw_model: string }>(database, `
     SELECT DISTINCT raw_model FROM api_calls ORDER BY raw_model

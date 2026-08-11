@@ -71,8 +71,14 @@ beforeEach(() => {
       return Response.json({
         agents: [],
         models: [],
-        sessions: [{ label: "Test session", value: "session-1" }],
-        workspaces: [{ label: "Workspace one", value: "workspace-1" }],
+        sessions: [
+          { label: "Test session", value: "session-1", workspace: "workspace-1" },
+          { label: "Other session", value: "session-2", workspace: "workspace-2" },
+        ],
+        workspaces: [
+          { label: "Workspace one", value: "workspace-1" },
+          { label: "Workspace two", value: "workspace-2" },
+        ],
       });
     }
     if (url === "/api/health") {
@@ -140,6 +146,26 @@ describe("Dashboard", () => {
       expect(requestedUrls.some((url) => (
         url.startsWith("/api/models?") && url.includes("workspace=workspace-1")
       ))).toBe(true);
+    });
+  });
+
+  test("limits session choices to the selected workspace", async () => {
+    const { Dashboard } = await import("../../src/dashboard/Dashboard");
+    render(<Dashboard />);
+    await screen.findAllByText("$1.23");
+
+    const sessionSelect = screen.getByLabelText("Session") as HTMLSelectElement;
+    fireEvent.change(sessionSelect, { target: { value: "session-2" } });
+    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "workspace-1" } });
+
+    expect(sessionSelect.value).toBe("");
+    expect([...sessionSelect.options].map((option) => option.text)).toEqual(["All", "Test session"]);
+    await waitFor(() => {
+      const latestSummaryRequest = requestedUrls
+        .filter((url) => url.startsWith("/api/summary?"))
+        .at(-1);
+      expect(latestSummaryRequest).toContain("workspace=workspace-1");
+      expect(latestSummaryRequest).not.toContain("session=");
     });
   });
 

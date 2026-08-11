@@ -94,9 +94,13 @@ export interface FilterOption {
   value: string;
 }
 
+export interface SessionFilterOption extends FilterOption {
+  workspace: string;
+}
+
 export interface FilterOptionsResponse {
   agents: readonly FilterOption[];
   models: readonly FilterOption[];
-  sessions: readonly FilterOption[];
+  sessions: readonly SessionFilterOption[];
   workspaces: readonly FilterOption[];
 }

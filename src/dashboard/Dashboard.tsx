@@ -1,7 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { ConnectionStatus } from "../live-sync/ConnectionStatus";
 import { PricingWarning } from "../pricing/PricingWarning";
-import type { AgentRow, FilterOption, SessionRow } from "./contracts";
+import type {
+  AgentRow,
+  FilterOption,
+  FilterOptionsResponse,
+  SessionRow,
+} from "./contracts";
 import { formatUsdNano } from "./formatting";
 import {
   initialDashboardFilters,
@@ -26,6 +31,22 @@ export function Dashboard() {
     value: DashboardViewFilters[Key],
   ): void {
     setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateWorkspace(workspace: string): void {
+    setFilters((current) => {
+      const selectedSession = dashboard.options.sessions.find(
+        (session) => session.value === current.sessionId,
+      );
+      const canKeepSession = workspace === ""
+        || current.sessionId === ""
+        || selectedSession?.workspace === workspace;
+      return {
+        ...current,
+        sessionId: canKeepSession ? current.sessionId : "",
+        workspace,
+      };
+    });
   }
 
   function requestReprice(): void {
@@ -69,7 +90,12 @@ export function Dashboard() {
         <div className="dashboard-warning" role="status" key={warning}>{warning}</div>
       ))}
 
-      <FilterBar filters={filters} options={dashboard.options} onChange={updateFilter} />
+      <FilterBar
+        filters={filters}
+        onChange={updateFilter}
+        onWorkspaceChange={updateWorkspace}
+        options={dashboard.options}
+      />
 
       <section className="metric-grid" aria-label="Cost summary">
         <Metric label="Total spend" value={formatUsdNano(summary?.totalCostNano ?? 0)} />
@@ -190,16 +216,15 @@ export function Dashboard() {
 interface FilterBarProps {
   filters: DashboardViewFilters;
   onChange: <Key extends keyof DashboardViewFilters>(key: Key, value: DashboardViewFilters[Key]) => void;
-  options: {
-    agents: readonly FilterOption[];
-    models: readonly FilterOption[];
-    sessions: readonly FilterOption[];
-    workspaces: readonly FilterOption[];
-  };
+  onWorkspaceChange: (workspace: string) => void;
+  options: FilterOptionsResponse;
 }
 
-function FilterBar({ filters, onChange, options }: FilterBarProps) {
+function FilterBar({ filters, onChange, onWorkspaceChange, options }: FilterBarProps) {
   const isShowingIndividualCalls = filters.sessionId !== "";
+  const sessionOptions = filters.workspace === ""
+    ? options.sessions
+    : options.sessions.filter((session) => session.workspace === filters.workspace);
   return (
     <section className="filter-bar" aria-label="Dashboard filters">
       <FilterSelect label="Range" value={filters.range} onChange={(value) => onChange("range", value as DashboardViewFilters["range"])} options={[
@@ -208,8 +233,8 @@ function FilterBar({ filters, onChange, options }: FilterBarProps) {
         { label: "Last 7 days", value: "7d" },
         { label: "Last 30 days", value: "30d" },
       ]} />
-      <FilterSelect label="Workspace" value={filters.workspace} onChange={(value) => onChange("workspace", value)} options={options.workspaces} includeAll />
-      <FilterSelect label="Session" value={filters.sessionId} onChange={(value) => onChange("sessionId", value)} options={options.sessions} includeAll />
+      <FilterSelect label="Workspace" value={filters.workspace} onChange={onWorkspaceChange} options={options.workspaces} includeAll />
+      <FilterSelect label="Session" value={filters.sessionId} onChange={(value) => onChange("sessionId", value)} options={sessionOptions} includeAll />
       <FilterSelect label="Model" value={filters.model} onChange={(value) => onChange("model", value)} options={options.models} includeAll />
       <FilterSelect label="Agent type" value={filters.agentType} onChange={(value) => onChange("agentType", value as DashboardViewFilters["agentType"])} options={[
         { label: "Main", value: "main" },

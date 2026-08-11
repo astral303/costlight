@@ -111,6 +111,7 @@ describe("dashboard queries", () => {
       expect(options.sessions).toEqual([{
         label: `$0.46 · ${"A".repeat(47)}… · wd_project_123`,
         value: "session-a",
+        workspace: "wd_project_123",
       }]);
     } finally {
       database.close();
