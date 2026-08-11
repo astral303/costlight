@@ -47,6 +47,7 @@ mise run dev
 | `mise run build` | Build the browser application into `dist/` |
 | `mise run verify` | Run type-checking, tests, and the production build |
 | `bun run import` | Import/reconcile history once and print aggregate diagnostics |
+| `mise run analyze-cache` | Infer the Kimi cache inactivity window from all local wire logs |
 | `bun run reprice` | Explicitly refresh rates and recalculate all historical calls |
 | `bun run audit` | Compare local totals with ccusage through Bun's package runner |
 
@@ -63,6 +64,20 @@ The importer discovers current Kimi files under:
 ```
 
 It also checks `~/.kimi`, supports the legacy session-level `wire.jsonl` layout, and honors `KIMI_CODE_HOME` or `--kimi-root`.
+
+## Cache-window analysis
+
+Run the cache analysis independently of the dashboard database:
+
+```powershell
+mise run analyze-cache
+```
+
+The current local-data conclusion and uncertainty are recorded in [CACHE_WINDOW_ANALYSIS.md](CACHE_WINDOW_ANALYSIS.md).
+
+The command rebuilds canonical calls in memory, pairs each usage record with its client-side `llm.request` timestamp, and compares consecutive requests in the same session, agent, and model. A strong hit retains at least 90% of a large prior cached prefix. A strong miss moves most of the lost cached tokens into uncached input. Prompt-size changes, decreasing message counts, and changed system/tool hashes are excluded.
+
+The report contains only aggregate counts and anonymized boundary examples. It does not retain prompts, responses, tool arguments, or tool output, and it does not modify Kimi logs or the dashboard database.
 
 Default application-data directories are:
 

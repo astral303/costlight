@@ -8,6 +8,7 @@
     "dev": "bun src/app/development.ts",
     "start": "bun src/app/start.ts",
     "import": "bun src/app/import-history.ts",
+    "analyze-cache": "bun src/cache-analysis/run.ts",
     "audit": "bun src/app/audit.ts",
     "reprice": "bun src/app/reprice-history.ts",
     "check": "bunx --bun tsc --noEmit",

@@ -13,6 +13,10 @@ run = "bun run start"
 description = "Type-check the application and tests"
 run = "bun run check"
 
+[tasks.analyze-cache]
+description = "Infer the Kimi prompt-cache inactivity window from local wire logs"
+run = "bun run analyze-cache"
+
 [tasks.test]
 description = "Run the test suite"
 run = "bun test"
