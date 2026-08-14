@@ -172,7 +172,13 @@ export function Dashboard() {
           </div>
         </div>
         <div className="table-scroll">
-          <table>
+          <table className="session-table">
+            <colgroup>
+              <col />
+              <col className="session-table__last-call-column" />
+              <col className="session-table__count-column" span={3} />
+              <col className="session-table__cost-column" />
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Session</th>
@@ -415,13 +421,17 @@ function SessionTableRows({
   queryString: string;
   session: SessionRow;
 }) {
+  const sessionTitle = session.title ?? session.sessionId;
   return (
     <>
       <tr>
-        <td>
+        <td className="session-table__session-cell">
           <button type="button" className="session-toggle" onClick={onToggle} aria-expanded={expanded}>
             <span aria-hidden="true">{expanded ? "−" : "+"}</span>
-            <span><strong>{session.title ?? session.sessionId}</strong><small>{session.workspaceKey}</small></span>
+            <span className="session-toggle__label">
+              <strong className="session-toggle__title" title={sessionTitle}>{sessionTitle}</strong>
+              <small className="session-toggle__workspace" title={session.workspaceKey}>{session.workspaceKey}</small>
+            </span>
           </button>
         </td>
         <td>{formatDateTime(session.lastCallAtMs)}</td>

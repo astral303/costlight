@@ -226,6 +226,23 @@ table {
   font-size: 0.76rem;
 }
 
+.session-table {
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+.session-table__last-call-column {
+  width: 170px;
+}
+
+.session-table__count-column {
+  width: 72px;
+}
+
+.session-table__cost-column {
+  width: 100px;
+}
+
 th,
 td {
   padding: 13px 11px;
@@ -269,6 +286,8 @@ td small {
 
 .session-toggle {
   display: flex;
+  width: 100%;
+  min-width: 0;
   align-items: center;
   gap: 9px;
   padding: 0;
@@ -285,6 +304,15 @@ td small {
   place-items: center;
   color: #65d6ad;
   font-size: 1rem;
+}
+
+.session-toggle__label,
+.session-toggle__title,
+.session-toggle__workspace {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agent-detail-row td {

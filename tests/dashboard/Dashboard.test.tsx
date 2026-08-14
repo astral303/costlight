@@ -29,6 +29,7 @@ class FakeEventSource {
 
 const requestedUrls: string[] = [];
 const statusTimestampMs = new Date(new Date().getFullYear(), 7, 14, 16, 38).getTime();
+const longSessionTitle = "Highest-cost session with a title long enough to exceed its table column without truncation";
 
 beforeEach(() => {
   requestedUrls.length = 0;
@@ -72,7 +73,7 @@ beforeEach(() => {
             createdAtMs: 0,
             lastCallAtMs: 1,
             sessionId: "session-high",
-            title: "Highest-cost session",
+            title: longSessionTitle,
             totalCostNano: 2_000_000_000,
           },
           {
@@ -220,13 +221,25 @@ describe("Dashboard", () => {
       "tbody > tr > td:first-child strong",
     )].map((title) => title.textContent);
 
-    expect(sessionTitles()).toEqual(["Highest-cost session", "Test session", "Newest session"]);
+    expect(sessionTitles()).toEqual([longSessionTitle, "Test session", "Newest session"]);
 
     fireEvent.change(sessionOrder, { target: { value: "start" } });
 
-    expect(sessionTitles()).toEqual(["Newest session", "Test session", "Highest-cost session"]);
+    expect(sessionTitles()).toEqual(["Newest session", "Test session", longSessionTitle]);
     expect(requestedUrls).toHaveLength(requestCount);
     expect(requestedUrls.every((url) => !url.includes("sort="))).toBe(true);
+  });
+
+  test("constrains long session titles without hiding their full text", async () => {
+    const { Dashboard } = await import("../../src/dashboard/Dashboard");
+    render(<Dashboard />);
+    const title = await screen.findByText(longSessionTitle);
+    const table = title.closest("table");
+
+    expect(table?.classList.contains("session-table")).toBe(true);
+    expect(table?.querySelector("col.session-table__count-column")?.getAttribute("span")).toBe("3");
+    expect(title.classList.contains("session-toggle__title")).toBe(true);
+    expect(title.getAttribute("title")).toBe(longSessionTitle);
   });
 
   test("offers complete and current calendar-month ranges", async () => {
