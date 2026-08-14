@@ -1,56 +1,64 @@
 import { describe, expect, test } from "bun:test";
-import { formatGitVersion, resolveApplicationVersion } from "../../src/app-version/resolve-version";
+import {
+  formatGitVersion,
+  type GitVersionState,
+  resolveApplicationVersion,
+} from "../../src/app-version/resolve-version";
+
+const UNTAGGED_STATE: GitVersionState = {
+  commitCount: 20,
+  dirty: false,
+  exactTags: [],
+  headCommitDate: "2026-08-14T12:00:00-04:00",
+  nearestTag: null,
+};
 
 describe("application version", () => {
   test("uses a clean CalVer tag as the release version", () => {
     expect(formatGitVersion({
-      commitCount: 0,
-      dirty: false,
+      ...UNTAGGED_STATE,
       exactTags: ["v2026.8.14"],
       nearestTag: "v2026.8.14",
-    }, "2026.8.14")).toBe("2026.8.14");
+    })).toBe("2026.8.14");
   });
 
   test("counts development commits from the nearest release tag", () => {
     expect(formatGitVersion({
+      ...UNTAGGED_STATE,
       commitCount: 3,
-      dirty: false,
-      exactTags: [],
       nearestTag: "v2026.8.14",
-    }, "2026.8.14")).toBe("2026.8.14-dev.3");
+    })).toBe("2026.8.14-dev.3");
   });
 
   test("marks modified release source as development code", () => {
     expect(formatGitVersion({
+      ...UNTAGGED_STATE,
       commitCount: 0,
       dirty: true,
       exactTags: ["v2026.8.14"],
       nearestTag: "v2026.8.14",
-    }, "2026.8.14")).toBe("2026.8.14-dev.0.dirty");
+    })).toBe("2026.8.14-dev.0.dirty");
   });
 
-  test("uses the bootstrap date and total commits before the first release", () => {
-    expect(formatGitVersion({
-      commitCount: 19,
-      dirty: false,
-      exactTags: [],
-      nearestTag: null,
-    }, "2026.8.14")).toBe("2026.8.14-dev.19");
+  test("uses the HEAD commit date and total commits before the first release", () => {
+    expect(formatGitVersion(UNTAGGED_STATE)).toBe("2026.8.14-dev.20");
   });
 
   test("rejects malformed and conflicting release tags", () => {
     expect(() => formatGitVersion({
-      commitCount: 0,
-      dirty: false,
+      ...UNTAGGED_STATE,
       exactTags: ["v2026.8.14", "v2026.8.15"],
       nearestTag: "v2026.8.14",
-    }, "2026.8.14")).toThrow("conflicting CalVer tags");
+    })).toThrow("conflicting CalVer tags");
     expect(() => formatGitVersion({
+      ...UNTAGGED_STATE,
       commitCount: 1,
-      dirty: false,
-      exactTags: [],
       nearestTag: "v2026.13.1",
-    }, "2026.8.14")).toThrow("Expected a real date");
+    })).toThrow("Expected a real date");
+    expect(() => formatGitVersion({
+      ...UNTAGGED_STATE,
+      headCommitDate: "not-a-date",
+    })).toThrow("invalid HEAD commit date");
   });
 
   test("accepts a validated build-time version override", () => {

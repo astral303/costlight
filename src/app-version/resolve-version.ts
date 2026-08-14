@@ -1,13 +1,13 @@
-import packageMetadata from "../../package.json" with { type: "json" };
-
 const VERSION_ENVIRONMENT_KEY = "COSTLIGHT_VERSION";
 const CALVER_PATTERN = /^(\d{4})\.(\d{1,2})\.(\d{1,2})$/;
+const ISO_DATE_PREFIX_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T/;
 const APPLICATION_VERSION_PATTERN = /^(\d{4})\.(\d{1,2})\.(\d{1,2})(?:-dev\.(\d+)(?:\.dirty)?)?$/;
 
 export interface GitVersionState {
   commitCount: number;
   dirty: boolean;
   exactTags: readonly string[];
+  headCommitDate: string;
   nearestTag: string | null;
 }
 
@@ -21,11 +21,10 @@ export function resolveApplicationVersion(
     return suppliedVersion;
   }
 
-  return formatGitVersion(readGitVersionState(workingDirectory), packageMetadata.version);
+  return formatGitVersion(readGitVersionState(workingDirectory));
 }
 
-export function formatGitVersion(state: GitVersionState, bootstrapCalVer: string): string {
-  const bootstrapVersion = parseCalVer(bootstrapCalVer, "package.json version");
+export function formatGitVersion(state: GitVersionState): string {
   const exactVersions = state.exactTags.map((tag) => parseCalVerTag(tag));
   if (exactVersions.length > 1) {
     throw new Error(`HEAD has conflicting CalVer tags: ${state.exactTags.join(", ")}.`);
@@ -37,7 +36,9 @@ export function formatGitVersion(state: GitVersionState, bootstrapCalVer: string
   }
 
   const baseVersion = exactVersion
-    ?? (state.nearestTag === null ? bootstrapVersion : parseCalVerTag(state.nearestTag));
+    ?? (state.nearestTag === null
+      ? parseCommitCalVer(state.headCommitDate)
+      : parseCalVerTag(state.nearestTag));
   const dirtySuffix = state.dirty ? ".dirty" : "";
   return `${baseVersion}-dev.${state.commitCount}${dirtySuffix}`;
 }
@@ -92,6 +93,7 @@ function readGitVersionState(workingDirectory: string): GitVersionState {
     commitCount,
     dirty: runGit(["status", "--porcelain", "--untracked-files=normal"], workingDirectory) !== "",
     exactTags,
+    headCommitDate: runGit(["show", "-s", "--format=%cI", "HEAD"], workingDirectory),
     nearestTag,
   };
 }
@@ -126,6 +128,17 @@ function parseCalVerTag(tag: string): string {
     throw new Error(`Invalid Costlight release tag: ${tag}. Expected vYYYY.M.D.`);
   }
   return parseCalVer(tag.slice(1), `release tag ${tag}`);
+}
+
+function parseCommitCalVer(value: string): string {
+  const match = ISO_DATE_PREFIX_PATTERN.exec(value);
+  if (match === null) {
+    throw new Error(`Git returned an invalid HEAD commit date: ${value}.`);
+  }
+  return parseCalVer(
+    `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}`,
+    "HEAD commit date",
+  );
 }
 
 function parseCalVer(value: string, source: string): string {
