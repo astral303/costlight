@@ -1,6 +1,7 @@
 import { openDashboardDatabase } from "../app/database";
 import { parseRuntimeOptions } from "../app/config";
 import { SessionImporter } from "../session-import/importer";
+import { createKimiImportProvider } from "../session-import/kimi/provider";
 import { analyzeCacheWindow, defaultCacheAnalysisOptions } from "./analyzer";
 import { loadCanonicalCacheCalls } from "./call-loader";
 import { formatCacheAnalysisReport } from "./report";
@@ -9,7 +10,9 @@ const options = parseRuntimeOptions();
 const database = openDashboardDatabase(":memory:");
 
 try {
-  const importer = new SessionImporter(database, options.kimiRoots);
+  const importer = new SessionImporter(database, [
+    createKimiImportProvider(options.kimiRoots),
+  ]);
   const importSummary = await importer.reconcile();
   if (importSummary.sourceErrorCount > 0) {
     throw new Error(

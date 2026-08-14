@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseSessionState } from "../../src/session-import/state-parser";
+import { parseSessionState } from "../../../src/session-import/kimi/state-parser";
 
 describe("parseSessionState", () => {
   test("extracts only session and agent attribution metadata", async () => {

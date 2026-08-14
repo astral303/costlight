@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { Database } from "bun:sqlite";
-import { CallLedger } from "../../src/call-accounting/ledger";
+import {
+  type CallPricing,
+  CallLedger,
+  type RateResolver,
+} from "../../src/call-accounting/ledger";
 import { openDashboardDatabase } from "../../src/app/database";
 import type { DashboardFilters } from "../../src/dashboard/contracts";
 import {
@@ -25,8 +29,10 @@ describe("dashboard queries", () => {
     try {
       insertSource(database, "session-a", "main", "main", 100, "wire-a");
       insertSource(database, "session-b", "agent-0", "sub", 200, "wire-b");
-      const ledger = new CallLedger(database, () => ({
+      const ledger = new CallLedger(database, callPricing(() => ({
         basis: "test catalog",
+        cacheCreation1hNanoPerToken: 4,
+        cacheCreation5mNanoPerToken: 4,
         cacheCreationNanoPerToken: 4,
         cacheReadNanoPerToken: 2,
         confidence: "exact",
@@ -34,7 +40,7 @@ describe("dashboard queries", () => {
         outputNanoPerToken: 5,
         rateId: null,
         resolvedModelKey: "moonshotai/kimi-k3",
-      }));
+      })));
       ledger.recordUsage({
         agentId: "main",
         generation: 0,
@@ -89,8 +95,10 @@ describe("dashboard queries", () => {
         title: "No spend",
         workspaceKey: "wd_project_123",
       });
-      const ledger = new CallLedger(database, () => ({
+      const ledger = new CallLedger(database, callPricing(() => ({
         basis: "test catalog",
+        cacheCreation1hNanoPerToken: 1_000_000,
+        cacheCreation5mNanoPerToken: 1_000_000,
         cacheCreationNanoPerToken: 1_000_000,
         cacheReadNanoPerToken: 1_000_000,
         confidence: "exact",
@@ -98,7 +106,7 @@ describe("dashboard queries", () => {
         outputNanoPerToken: 1_000_000,
         rateId: null,
         resolvedModelKey: "moonshotai/kimi-k3",
-      }));
+      })));
       ledger.recordUsage({
         agentId: "main",
         generation: 0,
@@ -110,9 +118,11 @@ describe("dashboard queries", () => {
 
       expect(options.sessions).toEqual([{
         label: `$0.46 · ${"A".repeat(47)}… · wd_project_123`,
+        provider: "moonshotai",
         value: "session-a",
         workspace: "wd_project_123",
       }]);
+      expect(options.providers).toEqual([{ label: "Kimi", value: "moonshotai" }]);
     } finally {
       database.close();
     }
@@ -122,8 +132,10 @@ describe("dashboard queries", () => {
     const database = openDashboardDatabase(":memory:");
     try {
       insertSource(database, "session-a", "main", "main", 100, "wire-a");
-      const ledger = new CallLedger(database, () => ({
+      const ledger = new CallLedger(database, callPricing(() => ({
         basis: "test catalog",
+        cacheCreation1hNanoPerToken: 1_000_000,
+        cacheCreation5mNanoPerToken: 1_000_000,
         cacheCreationNanoPerToken: 1_000_000,
         cacheReadNanoPerToken: 1_000_000,
         confidence: "exact",
@@ -131,7 +143,7 @@ describe("dashboard queries", () => {
         outputNanoPerToken: 1_000_000,
         rateId: null,
         resolvedModelKey: "moonshotai/kimi-k3",
-      }));
+      })));
       ledger.recordUsage({
         agentId: "main",
         generation: 0,
@@ -160,6 +172,62 @@ describe("dashboard queries", () => {
       database.close();
     }
   });
+
+  test("excludes non-metered calls from every visible aggregate and filter", () => {
+    const database = openDashboardDatabase(":memory:");
+    try {
+      insertSource(database, "metered", "main", "main", 100, "metered-wire", {
+        provider: "anthropic",
+        title: "Metered Fable",
+      });
+      insertSource(database, "excluded", "main", "main", 200, "excluded-wire", {
+        provider: "anthropic",
+        title: "Subscription Opus",
+      });
+      const ledger = new CallLedger(
+        database,
+        callPricing(() => ({
+          basis: "test catalog",
+          cacheCreation1hNanoPerToken: 1,
+          cacheCreation5mNanoPerToken: 1,
+          cacheCreationNanoPerToken: 1,
+          cacheReadNanoPerToken: 1,
+          confidence: "exact",
+          inputNanoPerToken: 1,
+          outputNanoPerToken: 1,
+          rateId: null,
+          resolvedModelKey: "anthropic/test",
+        })),
+        (_provider, model) => ({
+          accountStateId: null,
+          basis: model === "claude-fable-5" ? "pro-fable" : "pro-subscription-excluded",
+          isMetered: model === "claude-fable-5",
+        }),
+      );
+      ledger.recordUsage(
+        { agentId: "main", generation: 0, sessionId: "metered", sourcePath: "metered-wire" },
+        { ...createUsage("metered", 1_000), model: "claude-fable-5" },
+      );
+      ledger.recordUsage(
+        { agentId: "main", generation: 0, sessionId: "excluded", sourcePath: "excluded-wire" },
+        { ...createUsage("excluded", 2_000), model: "claude-opus-5" },
+      );
+
+      expect(querySummary(database, filters, 3_000).callCount).toBe(1);
+      expect(queryTimeseries(database, filters).points).toHaveLength(1);
+      expect(querySessions(database, filters, false).map((session) => session.sessionId))
+        .toEqual(["metered"]);
+      expect(queryModels(database, filters).map((model) => model.rawModel))
+        .toEqual(["claude-fable-5"]);
+      expect(queryFilterOptions(database, false).sessions.map((session) => session.value))
+        .toEqual(["metered"]);
+      expect(database.query<{ count: number }, []>(`
+        SELECT COUNT(*) AS count FROM usage_occurrences
+      `).get()?.count).toBe(2);
+    } finally {
+      database.close();
+    }
+  });
 });
 
 function insertSource(
@@ -169,14 +237,22 @@ function insertSource(
   agentType: "main" | "sub",
   createdAtMs: number,
   sourcePath: string,
-  session: { title?: string; workspaceKey?: string } = {},
+  session: { provider?: string; title?: string; workspaceKey?: string } = {},
 ): void {
   const workspaceKey = session.workspaceKey ?? "workspace";
   const title = session.title ?? null;
   database.query(`
-    INSERT INTO sessions (session_id, workspace_key, title, created_at_ms, updated_at_ms, parse_status)
-    VALUES (?, ?, ?, ?, ?, 'ok')
-  `).run(sessionId, workspaceKey, title, createdAtMs, createdAtMs);
+    INSERT INTO sessions (
+      session_id, provider, workspace_key, title, created_at_ms, updated_at_ms, parse_status
+    ) VALUES (?, ?, ?, ?, ?, ?, 'ok')
+  `).run(
+    sessionId,
+    session.provider ?? "moonshotai",
+    workspaceKey,
+    title,
+    createdAtMs,
+    createdAtMs,
+  );
   database.query(`
     INSERT INTO agents (session_id, agent_id, agent_type, parent_agent_id, source_directory)
     VALUES (?, ?, ?, ?, ?)
@@ -201,10 +277,21 @@ function createUsage(providerRequestId: string, timestampMs: number): ParsedUsag
     requestMetadata: null,
     stepUuid: `${providerRequestId}-step`,
     timestampMs,
-    tokens: { cacheCreation: 20, cacheRead: 300, inputOther: 100, output: 40 },
+    tokens: {
+      cacheCreation: 20,
+      cacheCreation1h: 0,
+      cacheCreation5m: 0,
+      cacheRead: 300,
+      inputOther: 100,
+      output: 40,
+    },
   };
 }
 
 function sum(values: readonly number[]): number {
   return values.reduce((total, value) => total + value, 0);
+}
+
+function callPricing(resolve: RateResolver): CallPricing {
+  return { resolve, resolveByRateId: () => null };
 }

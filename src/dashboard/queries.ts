@@ -24,6 +24,8 @@ interface FilterSql {
 }
 
 interface AggregateRow {
+  cache_creation_1h_tokens: number;
+  cache_creation_5m_tokens: number;
   cache_creation_cost_nano: number;
   cache_creation_tokens: number;
   cache_read_cost_nano: number;
@@ -81,6 +83,8 @@ export function querySummary(
   const replayExcludedCount = queryReplayCount(database, filters);
   const allInputTokens = aggregate.input_other_tokens
     + aggregate.cache_creation_tokens
+    + aggregate.cache_creation_5m_tokens
+    + aggregate.cache_creation_1h_tokens
     + aggregate.cache_read_tokens;
 
   return {
@@ -231,8 +235,10 @@ export function queryAgents(
       SUM(CASE WHEN call.event_fingerprint IS NOT NULL AND call.total_cost_nano IS NULL THEN 1 ELSE 0 END)
         AS unpriced_call_count
     FROM agents AS agent
-    LEFT JOIN api_calls AS call
-      ON call.session_id = agent.session_id AND call.agent_id = agent.agent_id
+    JOIN api_calls AS call
+      ON call.session_id = agent.session_id
+      AND call.agent_id = agent.agent_id
+      AND call.is_metered = 1
     WHERE ${conditions.join(" AND ")}
     GROUP BY agent.session_id, agent.agent_id
     ORDER BY CASE agent.agent_type WHEN 'main' THEN 0 WHEN 'sub' THEN 1 ELSE 2 END, agent.agent_id
@@ -250,6 +256,8 @@ export function queryAgents(
 export function queryModels(database: Database, filters: DashboardFilters): readonly ModelRow[] {
   const filterSql = buildCallFilter(filters);
   const rows = queryRows<{
+    cache_creation_1h_nano_per_token: number | null;
+    cache_creation_5m_nano_per_token: number | null;
     cache_creation_nano_per_token: number | null;
     cache_read_nano_per_token: number | null;
     call_count: number;
@@ -270,11 +278,20 @@ export function queryModels(database: Database, filters: DashboardFilters): read
       call.pricing_basis,
       COUNT(*) AS call_count,
       COALESCE(SUM(call.total_cost_nano), 0) AS total_cost_nano,
-      SUM(call.input_other_tokens + call.cache_creation_tokens + call.cache_read_tokens + call.output_tokens)
+      SUM(
+        call.input_other_tokens
+        + call.cache_creation_tokens
+        + call.cache_creation_5m_tokens
+        + call.cache_creation_1h_tokens
+        + call.cache_read_tokens
+        + call.output_tokens
+      )
         AS total_tokens,
       SUM(CASE WHEN call.total_cost_nano IS NULL THEN 1 ELSE 0 END) AS unpriced_call_count,
       MAX(rate.input_nano_per_token) AS input_nano_per_token,
       MAX(rate.cache_creation_nano_per_token) AS cache_creation_nano_per_token,
+      MAX(rate.cache_creation_5m_nano_per_token) AS cache_creation_5m_nano_per_token,
+      MAX(rate.cache_creation_1h_nano_per_token) AS cache_creation_1h_nano_per_token,
       MAX(rate.cache_read_nano_per_token) AS cache_read_nano_per_token,
       MAX(rate.output_nano_per_token) AS output_nano_per_token
     FROM api_calls AS call
@@ -286,6 +303,12 @@ export function queryModels(database: Database, filters: DashboardFilters): read
     ORDER BY total_cost_nano DESC
   `, filterSql.parameters);
   return rows.map((row) => ({
+    cacheCreation1hUsdPerMillion: nanoPerTokenToUsdPerMillion(
+      row.cache_creation_1h_nano_per_token,
+    ),
+    cacheCreation5mUsdPerMillion: nanoPerTokenToUsdPerMillion(
+      row.cache_creation_5m_nano_per_token,
+    ),
     cacheCreationUsdPerMillion: nanoPerTokenToUsdPerMillion(row.cache_creation_nano_per_token),
     cacheReadUsdPerMillion: nanoPerTokenToUsdPerMillion(row.cache_read_nano_per_token),
     callCount: row.call_count,
@@ -306,12 +329,17 @@ export function queryFilterOptions(
   privacyMode: boolean,
 ): FilterOptionsResponse {
   const workspaces = queryRows<{ workspace_key: string }>(database, `
-    SELECT DISTINCT workspace_key FROM sessions ORDER BY workspace_key
+    SELECT DISTINCT session.workspace_key
+    FROM sessions AS session
+    JOIN api_calls AS call ON call.session_id = session.session_id
+    WHERE call.is_metered = 1
+    ORDER BY session.workspace_key
   `).map(({ workspace_key }, index) => ({
     label: privacyMode ? `Workspace ${index + 1}` : workspace_key,
     value: workspace_key,
   }));
   const sessions = queryRows<{
+    provider: string;
     session_id: string;
     title: string | null;
     total_cost_nano: number;
@@ -319,30 +347,47 @@ export function queryFilterOptions(
   }>(database, `
     SELECT
       session.session_id,
+      session.provider,
       session.workspace_key,
       session.title,
       COALESCE(SUM(call.total_cost_nano), 0) AS total_cost_nano
     FROM sessions AS session
-    LEFT JOIN api_calls AS call ON call.session_id = session.session_id
+    LEFT JOIN api_calls AS call
+      ON call.session_id = session.session_id AND call.is_metered = 1
     GROUP BY session.session_id
     HAVING COALESCE(SUM(call.total_cost_nano), 0) > 0
     ORDER BY session.updated_at_ms DESC
-  `).map(({ session_id, title, total_cost_nano, workspace_key }, index) => ({
+  `).map(({ provider, session_id, title, total_cost_nano, workspace_key }, index) => ({
     label: formatSessionOptionLabel({
       projectId: privacyMode ? "Hidden project" : workspace_key,
       spendNano: total_cost_nano,
       title: privacyMode ? `Session ${index + 1}` : title ?? session_id,
     }),
+    provider,
     value: session_id,
     workspace: workspace_key,
   }));
   const models = queryRows<{ raw_model: string }>(database, `
-    SELECT DISTINCT raw_model FROM api_calls ORDER BY raw_model
+    SELECT DISTINCT raw_model
+    FROM api_calls
+    WHERE is_metered = 1
+    ORDER BY raw_model
   `).map(({ raw_model }) => ({ label: raw_model, value: raw_model }));
   const agents = queryRows<{ agent_id: string }>(database, `
-    SELECT DISTINCT agent_id FROM agents ORDER BY agent_id
+    SELECT DISTINCT agent.agent_id
+    FROM agents AS agent
+    JOIN api_calls AS call
+      ON call.session_id = agent.session_id AND call.agent_id = agent.agent_id
+    WHERE call.is_metered = 1
+    ORDER BY agent.agent_id
   `).map(({ agent_id }) => ({ label: agent_id, value: agent_id }));
-  return { agents, models, sessions, workspaces };
+  const providers = queryRows<{ provider: string }>(database, `
+    SELECT DISTINCT call.provider
+    FROM api_calls AS call
+    WHERE call.is_metered = 1
+    ORDER BY call.provider
+  `).map(({ provider }) => ({ label: providerLabel(provider), value: provider }));
+  return { agents, models, providers, sessions, workspaces };
 }
 
 function formatSessionOptionLabel({
@@ -378,6 +423,8 @@ function queryAggregate(database: Database, filterSql: FilterSql): AggregateRow 
       COALESCE(SUM(call.output_cost_nano), 0) AS output_cost_nano,
       COALESCE(SUM(call.input_other_tokens), 0) AS input_other_tokens,
       COALESCE(SUM(call.cache_creation_tokens), 0) AS cache_creation_tokens,
+      COALESCE(SUM(call.cache_creation_5m_tokens), 0) AS cache_creation_5m_tokens,
+      COALESCE(SUM(call.cache_creation_1h_tokens), 0) AS cache_creation_1h_tokens,
       COALESCE(SUM(call.cache_read_tokens), 0) AS cache_read_tokens,
       COALESCE(SUM(call.output_tokens), 0) AS output_tokens,
       SUM(CASE WHEN call.total_cost_nano IS NULL THEN 1 ELSE 0 END) AS unpriced_call_count
@@ -390,6 +437,8 @@ function queryAggregate(database: Database, filterSql: FilterSql): AggregateRow 
 
 function emptyAggregate(): AggregateRow {
   return {
+    cache_creation_1h_tokens: 0,
+    cache_creation_5m_tokens: 0,
     cache_creation_cost_nano: 0,
     cache_creation_tokens: 0,
     cache_read_cost_nano: 0,
@@ -405,12 +454,18 @@ function emptyAggregate(): AggregateRow {
 }
 
 function queryReplayCount(database: Database, filters: DashboardFilters): number {
-  const conditions = ["occurrence.is_canonical = 0"];
+  const conditions = [
+    "canonical.is_metered = 1",
+    "occurrence.is_canonical = 0",
+    "occurrence.replay_classification <> 'superseded-usage'",
+  ];
   const parameters: SqlParameter[] = [];
   addCommonConditions(conditions, parameters, filters, "occurrence");
   return queryScalar(database, `
     SELECT COUNT(*) AS value
     FROM usage_occurrences AS occurrence
+    JOIN api_calls AS canonical
+      ON canonical.event_fingerprint = occurrence.event_fingerprint
     JOIN sessions AS session ON session.session_id = occurrence.session_id
     JOIN agents AS agent
       ON agent.session_id = occurrence.session_id AND agent.agent_id = occurrence.agent_id
@@ -422,12 +477,18 @@ function queryReplayCountsBySession(
   database: Database,
   filters: DashboardFilters,
 ): ReadonlyMap<string, number> {
-  const conditions = ["occurrence.is_canonical = 0"];
+  const conditions = [
+    "canonical.is_metered = 1",
+    "occurrence.is_canonical = 0",
+    "occurrence.replay_classification <> 'superseded-usage'",
+  ];
   const parameters: SqlParameter[] = [];
   addCommonConditions(conditions, parameters, filters, "occurrence");
   const rows = queryRows<{ replay_count: number; session_id: string }>(database, `
     SELECT occurrence.session_id, COUNT(*) AS replay_count
     FROM usage_occurrences AS occurrence
+    JOIN api_calls AS canonical
+      ON canonical.event_fingerprint = occurrence.event_fingerprint
     JOIN sessions AS session ON session.session_id = occurrence.session_id
     JOIN agents AS agent
       ON agent.session_id = occurrence.session_id AND agent.agent_id = occurrence.agent_id
@@ -571,7 +632,7 @@ function addCumulativeCosts(rows: readonly TimeseriesSqlRow[]): readonly Timeser
 }
 
 function buildCallFilter(filters: DashboardFilters): FilterSql {
-  const conditions: string[] = [];
+  const conditions = ["call.is_metered = 1"];
   const parameters: SqlParameter[] = [];
   addCommonConditions(conditions, parameters, filters, "call");
   return {
@@ -605,6 +666,10 @@ function addCommonConditions(
   if (filters.model !== undefined) {
     conditions.push(`${callAlias}.raw_model = ?`);
     parameters.push(filters.model);
+  }
+  if (filters.provider !== undefined) {
+    conditions.push("session.provider = ?");
+    parameters.push(filters.provider);
   }
   if (filters.agentType !== undefined) {
     conditions.push("agent.agent_type = ?");
@@ -643,4 +708,10 @@ function queryScalar(
 
 function nanoPerTokenToUsdPerMillion(value: number | null): number | null {
   return value === null ? null : value / 1_000;
+}
+
+function providerLabel(provider: string): string {
+  if (provider === "anthropic") return "Claude";
+  if (provider === "moonshotai") return "Kimi";
+  return provider;
 }

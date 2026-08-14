@@ -1,13 +1,12 @@
-import type { AgentMetadata, ParsedSessionState } from "./types";
-
-interface StateParserDefaults {
-  agentDirectories: ReadonlyMap<string, string>;
-  fallbackTimestampMs: number;
-}
+import type {
+  AgentMetadata,
+  ParsedSessionState,
+  SessionStateParserDefaults,
+} from "../types";
 
 export function parseSessionState(
   content: string,
-  defaults: StateParserDefaults,
+  defaults: SessionStateParserDefaults,
 ): ParsedSessionState {
   const value: unknown = JSON.parse(content);
   if (!isRecord(value)) {

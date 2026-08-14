@@ -11,6 +11,7 @@ const runtimeOptionsSchema = z.object({
   host: z.string().min(1),
   port: z.number().int().min(1).max(65_535),
   accessToken: z.string().min(16).optional(),
+  claudeRoots: z.array(z.string().min(1)).min(1),
   kimiRoots: z.array(z.string().min(1)).min(1),
   privacyMode: z.boolean(),
   watchFiles: z.boolean(),
@@ -20,6 +21,7 @@ export type RuntimeOptions = z.infer<typeof runtimeOptionsSchema>;
 
 interface MutableRuntimeOptions {
   accessToken: string | undefined;
+  claudeRoots: string[];
   dataDirectory: string | undefined;
   host: string;
   kimiRoots: string[];
@@ -34,6 +36,7 @@ export function parseRuntimeOptions(
 ): RuntimeOptions {
   const options: MutableRuntimeOptions = {
     accessToken: environment.COSTLIGHT_TOKEN,
+    claudeRoots: resolveClaudeRoots(environment),
     dataDirectory: undefined,
     host: "127.0.0.1",
     kimiRoots: resolveKimiRoots(environment),
@@ -51,6 +54,9 @@ export function parseRuntimeOptions(
     switch (argument) {
       case "--access-token":
         options.accessToken = requireOptionValue(arguments_, ++index, argument);
+        break;
+      case "--claude-root":
+        options.claudeRoots = [requireOptionValue(arguments_, ++index, argument)];
         break;
       case "--data-dir":
         options.dataDirectory = requireOptionValue(arguments_, ++index, argument);
@@ -80,6 +86,7 @@ export function parseRuntimeOptions(
     ...options,
     dataDirectory,
     databasePath: join(dataDirectory, "dashboard.sqlite"),
+    claudeRoots: options.claudeRoots.map((root) => resolve(root)),
     kimiRoots: options.kimiRoots.map((root) => resolve(root)),
   });
 
@@ -115,6 +122,14 @@ function resolveKimiRoots(environment: Readonly<Record<string, string | undefine
     : [resolveEnvironmentPath(configuredRoot)];
 
   return [...new Set(candidateRoots.map((root) => resolve(root)))];
+}
+
+function resolveClaudeRoots(
+  environment: Readonly<Record<string, string | undefined>>,
+): string[] {
+  const configuredRoot = environment.CLAUDE_CONFIG_DIR;
+  const root = configuredRoot === undefined ? join(homedir(), ".claude") : configuredRoot;
+  return [resolve(root)];
 }
 
 function resolveDefaultDataDirectory(

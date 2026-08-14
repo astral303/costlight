@@ -1,6 +1,10 @@
 import { CallLedger } from "../call-accounting/ledger";
+import { MeteredUsageService } from "../metered-usage/service";
+import { isProMeteredClaudeModel } from "../pricing/anthropic-catalog";
 import { PricingCatalog } from "../pricing/catalog";
+import { createClaudeImportProvider } from "../session-import/claude/provider";
 import { SessionImporter } from "../session-import/importer";
+import { createKimiImportProvider } from "../session-import/kimi/provider";
 import { parseRuntimeOptions } from "./config";
 import { openDashboardDatabase } from "./database";
 
@@ -11,36 +15,97 @@ try {
   const pricingCatalog = new PricingCatalog(database, options.dataDirectory);
   await pricingCatalog.initialize();
   const pricingRefresh = await pricingCatalog.refreshIfStale();
-  const ledger = new CallLedger(database, pricingCatalog.resolve.bind(pricingCatalog));
-  const importer = new SessionImporter(database, options.kimiRoots, ledger);
+  const meteredUsage = new MeteredUsageService(database, {
+    isProMeteredModel: isProMeteredClaudeModel,
+  });
+  const ledger = new CallLedger(database, pricingCatalog, meteredUsage.resolveMetering);
+  const meteringRefresh = await meteredUsage.refreshClaudeAccount(true);
+  ledger.rebuildCanonicalCalls(meteringRefresh.affectedFingerprints);
+  const importer = new SessionImporter(database, [
+    createKimiImportProvider(options.kimiRoots),
+    createClaudeImportProvider(options.claudeRoots),
+  ], ledger);
   const summary = await importer.reconcile();
   ledger.priceUnpricedCalls();
   const totals = database
     .query<{
-      api_call_count: number;
+      claude_excluded_call_count: number;
+      claude_excluded_estimated_cost_nano: number;
+      claude_excluded_unpriced_call_count: number;
+      claude_metered_call_count: number;
+      claude_metered_cost_nano: number;
+      kimi_metered_call_count: number;
+      kimi_metered_cost_nano: number;
+      metered_call_count: number;
+      metered_total_cost_nano: number;
+      metered_unpriced_call_count: number;
       occurrence_count: number;
       session_count: number;
       subagent_call_count: number;
-      total_cost_nano: number;
-      unpriced_call_count: number;
+      total_call_count: number;
+      total_unpriced_call_count: number;
     }, []>(`
       SELECT
         (SELECT COUNT(*) FROM sessions) AS session_count,
         (SELECT COUNT(*) FROM usage_occurrences) AS occurrence_count,
-        (SELECT COUNT(*) FROM api_calls) AS api_call_count,
-        (SELECT COUNT(*) FROM api_calls WHERE total_cost_nano IS NULL) AS unpriced_call_count,
-        (SELECT COALESCE(SUM(total_cost_nano), 0) FROM api_calls) AS total_cost_nano,
+        (SELECT COUNT(*) FROM api_calls) AS total_call_count,
+        (SELECT COUNT(*) FROM api_calls WHERE is_metered = 1) AS metered_call_count,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE provider = 'moonshotai' AND is_metered = 1
+        ) AS kimi_metered_call_count,
+        (
+          SELECT COALESCE(SUM(total_cost_nano), 0) FROM api_calls
+          WHERE provider = 'moonshotai' AND is_metered = 1
+        ) AS kimi_metered_cost_nano,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE provider = 'anthropic' AND is_metered = 1
+        ) AS claude_metered_call_count,
+        (
+          SELECT COALESCE(SUM(total_cost_nano), 0) FROM api_calls
+          WHERE provider = 'anthropic' AND is_metered = 1
+        ) AS claude_metered_cost_nano,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE provider = 'anthropic' AND is_metered = 0
+        ) AS claude_excluded_call_count,
+        (
+          SELECT COALESCE(SUM(total_cost_nano), 0) FROM api_calls
+          WHERE provider = 'anthropic' AND is_metered = 0
+        ) AS claude_excluded_estimated_cost_nano,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE provider = 'anthropic' AND is_metered = 0 AND total_cost_nano IS NULL
+        ) AS claude_excluded_unpriced_call_count,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE total_cost_nano IS NULL
+        ) AS total_unpriced_call_count,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE is_metered = 1 AND total_cost_nano IS NULL
+        ) AS metered_unpriced_call_count,
+        (
+          SELECT COALESCE(SUM(total_cost_nano), 0) FROM api_calls
+          WHERE is_metered = 1
+        ) AS metered_total_cost_nano,
         (
           SELECT COUNT(*)
           FROM api_calls AS call
           JOIN agents AS agent
             ON agent.session_id = call.session_id AND agent.agent_id = call.agent_id
-          WHERE agent.agent_type = 'sub'
+          WHERE agent.agent_type = 'sub' AND call.is_metered = 1
         ) AS subagent_call_count
     `)
     .get();
 
-  console.log(JSON.stringify({ ...summary, pricingRefresh, totals }, null, 2));
+  console.log(JSON.stringify({
+    ...summary,
+    metering: meteredUsage.getClaudeStatus(),
+    pricingRefresh,
+    totals,
+  }, null, 2));
 } finally {
   database.close();
 }

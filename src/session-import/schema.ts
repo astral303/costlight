@@ -51,3 +51,21 @@ export const sessionImportMigration = {
     CREATE INDEX source_files_session_index ON source_files(session_id, agent_id);
   `,
 } as const;
+
+export const sessionProviderMigration = {
+  version: 5,
+  name: "session providers",
+  sql: `
+    ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'moonshotai';
+    CREATE INDEX sessions_provider_index ON sessions(provider, updated_at_ms DESC);
+  `,
+} as const;
+
+export const sessionMetadataCheckpointMigration = {
+  version: 9,
+  name: "incremental session metadata",
+  sql: `
+    ALTER TABLE sessions
+      ADD COLUMN metadata_checkpoint_bytes INTEGER NOT NULL DEFAULT 0;
+  `,
+} as const;

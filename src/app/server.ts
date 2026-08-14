@@ -4,9 +4,13 @@ import { CallLedger } from "../call-accounting/ledger";
 import { handleDashboardRoute } from "../dashboard/routes";
 import { LiveUpdateHub } from "../live-sync/hub";
 import { handleLiveRoute } from "../live-sync/routes";
+import { MeteredUsageService } from "../metered-usage/service";
+import { isProMeteredClaudeModel } from "../pricing/anthropic-catalog";
 import { PricingCatalog } from "../pricing/catalog";
 import { handlePricingRoute } from "../pricing/routes";
+import { createClaudeImportProvider } from "../session-import/claude/provider";
 import { SessionImporter } from "../session-import/importer";
+import { createKimiImportProvider } from "../session-import/kimi/provider";
 import { SessionMonitor } from "../session-import/monitor";
 import { handleSessionImportRoute } from "../session-import/routes";
 import { isLoopbackHost, parseRuntimeOptions } from "./config";
@@ -22,9 +26,15 @@ const hub = new LiveUpdateHub();
 const pricingCatalog = new PricingCatalog(database, options.dataDirectory);
 await pricingCatalog.initialize();
 await pricingCatalog.refreshIfStale();
-const ledger = new CallLedger(database, pricingCatalog.resolve.bind(pricingCatalog));
+const meteredUsage = new MeteredUsageService(database, {
+  isProMeteredModel: isProMeteredClaudeModel,
+});
+const ledger = new CallLedger(database, pricingCatalog, meteredUsage.resolveMetering);
 ledger.priceUnpricedCalls();
-const importer = new SessionImporter(database, options.kimiRoots, ledger);
+const importer = new SessionImporter(database, [
+  createKimiImportProvider(options.kimiRoots),
+  createClaudeImportProvider(options.claudeRoots),
+], ledger);
 const monitor = new SessionMonitor(importer, {
   onDataChanged: () => {
     hub.publish("usage-data");
@@ -32,7 +42,15 @@ const monitor = new SessionMonitor(importer, {
   onStatusChanged: () => {
     hub.publish("scan-status");
   },
-  sourceRoots: options.kimiRoots,
+  prepareForReconciliation: async (trigger) => {
+    const refresh = await meteredUsage.refreshClaudeAccount(
+      trigger === "manual" || trigger === "startup",
+    );
+    if (refresh.affectedFingerprints.length > 0) {
+      ledger.rebuildCanonicalCalls(refresh.affectedFingerprints);
+      hub.publish("metering-policy");
+    }
+  },
   watchFiles: options.watchFiles,
 });
 await monitor.start();
@@ -104,6 +122,7 @@ async function handleRequest(request: Request): Promise<Response> {
       database,
       hub,
       monitor,
+      meteredUsage,
       pricingCatalog,
       startedAtMs,
     })

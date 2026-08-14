@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import type { Dirent } from "node:fs";
-import type { DiscoveredSession, DiscoveredWireFile } from "./types";
+import type { DiscoveredSession, DiscoveredUsageFile } from "../types";
 
 export async function discoverKimiSessions(
   sourceRoots: readonly string[],
@@ -13,26 +13,27 @@ export async function discoverKimiSessions(
     for (const workspaceDirectory of await readDirectories(sessionsDirectory)) {
       for (const sessionDirectoryEntry of await readDirectories(join(sessionsDirectory, workspaceDirectory.name))) {
         const sessionDirectory = join(sessionsDirectory, workspaceDirectory.name, sessionDirectoryEntry.name);
-        const wireFiles = await discoverWireFiles(sessionDirectory);
-        const stateFilePath = await containsFile(sessionDirectory, "state.json")
+        const usageFiles = await discoverWireFiles(sessionDirectory);
+        const metadataSourcePath = await containsFile(sessionDirectory, "state.json")
           ? join(sessionDirectory, "state.json")
           : null;
-        if (wireFiles.length === 0 && stateFilePath === null) {
+        if (usageFiles.length === 0 && metadataSourcePath === null) {
           continue;
         }
 
         const agentDirectories = new Map<string, string>();
-        for (const wireFile of wireFiles) {
+        for (const wireFile of usageFiles) {
           agentDirectories.set(wireFile.agentId, dirname(wireFile.path));
         }
 
         discoveredSessions.push({
           agentDirectories,
+          provider: "moonshotai",
           sessionDirectory: resolve(sessionDirectory),
           sessionId: sessionDirectoryEntry.name,
           sourceRoot: resolve(sourceRoot),
-          stateFilePath: stateFilePath === null ? null : resolve(stateFilePath),
-          wireFiles,
+          metadataSourcePath: metadataSourcePath === null ? null : resolve(metadataSourcePath),
+          usageFiles,
           workspaceKey: workspaceDirectory.name,
         });
       }
@@ -42,8 +43,8 @@ export async function discoverKimiSessions(
   return discoveredSessions.sort((left, right) => left.sessionDirectory.localeCompare(right.sessionDirectory));
 }
 
-async function discoverWireFiles(sessionDirectory: string): Promise<readonly DiscoveredWireFile[]> {
-  const wireFiles: DiscoveredWireFile[] = [];
+async function discoverWireFiles(sessionDirectory: string): Promise<readonly DiscoveredUsageFile[]> {
+  const wireFiles: DiscoveredUsageFile[] = [];
   const legacyWirePath = join(sessionDirectory, "wire.jsonl");
   if (await containsFile(sessionDirectory, "wire.jsonl")) {
     wireFiles.push({ agentId: "main", path: resolve(legacyWirePath) });

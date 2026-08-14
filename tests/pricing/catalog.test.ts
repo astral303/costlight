@@ -35,6 +35,28 @@ describe("PricingCatalog", () => {
     }
   });
 
+  test("resolves distinct Claude Fable cache-write TTL rates", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+
+      expect(catalog.resolve("claude-fable-5", Date.now())).toMatchObject({
+        cacheCreation1hNanoPerToken: 20_000,
+        cacheCreation5mNanoPerToken: 12_500,
+        cacheCreationNanoPerToken: 12_500,
+        cacheReadNanoPerToken: 1_000,
+        confidence: "bundled",
+        inputNanoPerToken: 10_000,
+        outputNanoPerToken: 50_000,
+        resolvedModelKey: "anthropic/claude-fable-5",
+      });
+    } finally {
+      database.close();
+    }
+  });
+
   test("gives an exact raw-alias override precedence over bundled pricing", async () => {
     const dataDirectory = await createTemporaryDirectory();
     await writeFile(join(dataDirectory, "pricing-overrides.json"), JSON.stringify({
@@ -72,6 +94,11 @@ describe("PricingCatalog", () => {
         throw new Error("offline");
       }
       const url = String(input);
+      if (url.endsWith("pricing.md")) {
+        return new Response(anthropicPricingMarkdown(), {
+          headers: { "Content-Type": "text/markdown" },
+        });
+      }
       const body = url.includes("models.dev")
         ? {
           moonshotai: {
@@ -95,10 +122,38 @@ describe("PricingCatalog", () => {
       await catalog.initialize();
       expect((await catalog.forceRefresh()).every((result) => result.status === "refreshed")).toBe(true);
       expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken).toBe(2_500);
+      expect(catalog.getProviderPricingStatuses()).toEqual([
+        expect.objectContaining({
+          isStale: false,
+          provider: "anthropic",
+          refreshStatus: "succeeded",
+          sourceKind: "remote",
+          sourceName: "anthropic",
+        }),
+        expect.objectContaining({
+          isStale: false,
+          provider: "moonshotai",
+          refreshStatus: "succeeded",
+          sourceKind: "remote",
+          sourceName: expect.any(String),
+        }),
+      ]);
+      expect(await Bun.file(join(dataDirectory, "pricing-anthropic.md")).exists()).toBe(true);
+      expect(database.query<{ count: number }, []>(`
+        SELECT COUNT(*) AS count
+        FROM pricing_snapshots
+        WHERE source_name = 'anthropic'
+      `).get()?.count).toBe(1);
 
       isOffline = true;
       expect((await catalog.forceRefresh()).every((result) => result.status === "failed")).toBe(true);
       expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken).toBe(2_500);
+      expect(catalog.getProviderPricingStatuses()[0]).toMatchObject({
+        provider: "anthropic",
+        refreshStatus: "failed",
+        sourceKind: "remote",
+        sourceName: "anthropic",
+      });
     } finally {
       globalThis.fetch = originalFetch;
       database.close();
@@ -124,9 +179,81 @@ describe("PricingCatalog", () => {
 
       await catalog.waitForRefreshes();
 
-      expect(completedFetchCount).toBe(2);
+      expect(completedFetchCount).toBe(3);
     } finally {
       await refresh;
+      globalThis.fetch = originalFetch;
+      database.close();
+    }
+  });
+
+  test("reports bundled pricing separately before remote provider refreshes", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+
+      expect(catalog.getProviderPricingStatuses()).toEqual([
+        expect.objectContaining({
+          provider: "anthropic",
+          refreshStatus: "not-attempted",
+          sourceKind: "bundled",
+          sourceName: "bundled-claude-2026-08-14",
+          updatedAtMs: null,
+        }),
+        expect.objectContaining({
+          provider: "moonshotai",
+          refreshStatus: "not-attempted",
+          sourceKind: "bundled",
+          sourceName: "bundled-kimi-2026-08-09",
+          updatedAtMs: null,
+        }),
+      ]);
+    } finally {
+      database.close();
+    }
+  });
+
+  test("reports partial provider failure without discarding successful sources", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("pricing.md")) {
+        return new Response(anthropicPricingMarkdown());
+      }
+      if (url.includes("models.dev")) {
+        throw new Error("models.dev unavailable");
+      }
+      return Response.json({
+        "moonshot/kimi-k3": {
+          input_cost_per_token: 0.000003,
+          output_cost_per_token: 0.000015,
+        },
+      });
+    }) as unknown as typeof fetch;
+
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+      const results = await catalog.forceRefresh();
+
+      expect(results.map((result) => result.status)).toEqual([
+        "refreshed",
+        "failed",
+        "refreshed",
+      ]);
+      expect(catalog.getProviderPricingStatuses()[1]).toMatchObject({
+        provider: "moonshotai",
+        refreshStatus: "partial-failure",
+        sourceKind: "remote",
+        sourceName: "litellm",
+      });
+      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken)
+        .toBe(3_000);
+    } finally {
       globalThis.fetch = originalFetch;
       database.close();
     }
@@ -150,7 +277,7 @@ describe("PricingCatalog", () => {
         INSERT INTO source_files (path, source_root, session_id, agent_id)
         VALUES ('wire', 'root', 'session', 'main')
       `).run();
-      const ledger = new CallLedger(database, catalog.resolve.bind(catalog));
+      const ledger = new CallLedger(database, catalog);
       ledger.recordUsage({
         agentId: "main",
         generation: 0,
@@ -163,7 +290,14 @@ describe("PricingCatalog", () => {
         requestMetadata: null,
         stepUuid: "historical-rate-step",
         timestampMs: 1,
-        tokens: { cacheCreation: 0, cacheRead: 0, inputOther: 1, output: 1 },
+        tokens: {
+          cacheCreation: 0,
+          cacheCreation1h: 0,
+          cacheCreation5m: 0,
+          cacheRead: 0,
+          inputOther: 1,
+          output: 1,
+        },
       });
       const originalTotal = database
         .query<{ total_cost_nano: number }, []>("SELECT total_cost_nano FROM api_calls")
@@ -184,4 +318,12 @@ async function createTemporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "kimi-cost-pricing-test-"));
   temporaryDirectories.push(directory);
   return directory;
+}
+
+function anthropicPricingMarkdown(): string {
+  return `
+| Model | Base Input Tokens | 5m Cache Writes | 1h Cache Writes | Cache Hits & Refreshes | Output Tokens |
+|---|---:|---:|---:|---:|---:|
+| Claude Fable 5 | $10 / MTok | $12.50 / MTok | $20 / MTok | $1 / MTok | $50 / MTok |
+`;
 }

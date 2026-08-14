@@ -1,11 +1,13 @@
 import type { Database } from "bun:sqlite";
 import type { PricingCatalog } from "../pricing/catalog";
+import type { MeteredUsageService } from "../metered-usage/service";
 import type { SessionMonitor } from "../session-import/monitor";
 import type { LiveUpdateHub } from "./hub";
 
 interface LiveRouteDependencies {
   database: Database;
   hub: LiveUpdateHub;
+  meteredUsage: MeteredUsageService;
   monitor: SessionMonitor;
   pricingCatalog: PricingCatalog;
   startedAtMs: number;
@@ -35,15 +37,26 @@ export function handleLiveRoute(
       unpriced_call_count: number;
     }, []>(`
       SELECT
-        (SELECT COUNT(*) FROM sessions) AS session_count,
-        (SELECT COUNT(*) FROM api_calls) AS call_count,
-        (SELECT COUNT(*) FROM api_calls WHERE total_cost_nano IS NULL) AS unpriced_call_count
+        (
+          SELECT COUNT(DISTINCT session_id)
+          FROM api_calls
+          WHERE is_metered = 1
+        ) AS session_count,
+        (SELECT COUNT(*) FROM api_calls WHERE is_metered = 1) AS call_count,
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE is_metered = 1 AND total_cost_nano IS NULL
+        ) AS unpriced_call_count
     `)
     .get() ?? { call_count: 0, session_count: 0, unpriced_call_count: 0 };
   const ingestion = dependencies.monitor.getStatus();
   const pricingRefresh = dependencies.pricingCatalog.getLastRefreshResults();
+  const claudeMetering = dependencies.meteredUsage.getClaudeStatus();
   const warnings = [
     ...(ingestion.lastError === null ? [] : [ingestion.lastError]),
+    ...(claudeMetering.error === null
+      ? []
+      : [`Claude account check: ${claudeMetering.error}`]),
     ...pricingRefresh
       .filter((result) => result.status === "failed")
       .map((result) => `${result.sourceName}: ${result.error ?? "refresh failed"}`),
@@ -56,9 +69,12 @@ export function handleLiveRoute(
     callCount: counts.call_count,
     dataVersion: dependencies.hub.getDataVersion(),
     ingestion,
+    metering: {
+      claude: claudeMetering,
+    },
     pricing: {
       lastRefresh: pricingRefresh,
-      newestSnapshotMs: dependencies.pricingCatalog.getNewestSnapshotTimestamp(),
+      providers: dependencies.pricingCatalog.getProviderPricingStatuses(),
     },
     sessionCount: counts.session_count,
     startedAtMs: dependencies.startedAtMs,

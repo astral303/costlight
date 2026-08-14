@@ -11,7 +11,17 @@ describe("parseRuntimeOptions", () => {
 
     expect(options.host).toBe("127.0.0.1");
     expect(options.databasePath).toContain("Costlight");
+    expect(options.claudeRoots[0]).toContain(".claude");
     expect(options.watchFiles).toBe(true);
+  });
+
+  test("honors an explicit Claude transcript root", () => {
+    const options = parseRuntimeOptions(
+      ["--claude-root", "C:\\synthetic-claude"],
+      environment,
+    );
+
+    expect(options.claudeRoots).toEqual(["C:\\synthetic-claude"]);
   });
 
   test("requires a sufficiently long token for non-loopback access", () => {

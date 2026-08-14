@@ -1,9 +1,9 @@
 import type {
-  KimiTokenCounts,
   ParsedUsageRecord,
-  ParsedWireChunk,
+  ParsedUsageChunk,
   RequestIdentityContext,
-} from "./types";
+  UsageTokenCounts,
+} from "../types";
 
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 
@@ -11,7 +11,7 @@ export function parseWireChunk(
   bytes: Uint8Array,
   startingByteOffset: number,
   initialContext: RequestIdentityContext = {},
-): ParsedWireChunk {
+): ParsedUsageChunk {
   const records: ParsedUsageRecord[] = [];
   let context = { ...initialContext };
   let lineStart = 0;
@@ -127,7 +127,7 @@ function parseUsageRecord(
   };
 }
 
-function parseTokenCounts(value: unknown): KimiTokenCounts | null {
+function parseTokenCounts(value: unknown): UsageTokenCounts | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -140,7 +140,14 @@ function parseTokenCounts(value: unknown): KimiTokenCounts | null {
     return null;
   }
 
-  return { cacheCreation, cacheRead, inputOther, output };
+  return {
+    cacheCreation,
+    cacheCreation1h: 0,
+    cacheCreation5m: 0,
+    cacheRead,
+    inputOther,
+    output,
+  };
 }
 
 function parseTokenCount(value: unknown): number | null {
@@ -160,8 +167,13 @@ function parseTimestamp(value: unknown): number | null {
   return null;
 }
 
-function totalTokens(tokens: KimiTokenCounts): number {
-  return tokens.inputOther + tokens.cacheCreation + tokens.cacheRead + tokens.output;
+function totalTokens(tokens: UsageTokenCounts): number {
+  return tokens.inputOther
+    + tokens.cacheCreation
+    + tokens.cacheCreation1h
+    + tokens.cacheCreation5m
+    + tokens.cacheRead
+    + tokens.output;
 }
 
 function optionalNonemptyString(value: unknown): string | null {

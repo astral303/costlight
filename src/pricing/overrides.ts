@@ -4,6 +4,8 @@ import type { CatalogRate } from "./bundled-rates";
 import { usdPerTokenToNanoPerToken } from "./bundled-rates";
 
 const overrideRateSchema = z.object({
+  cacheCreation1hInputTokenCost: z.number().nonnegative().optional(),
+  cacheCreation5mInputTokenCost: z.number().nonnegative().optional(),
   cacheCreationInputTokenCost: z.number().nonnegative().optional(),
   cacheReadInputTokenCost: z.number().nonnegative().optional(),
   effectiveAt: z.union([z.string(), z.number()]).optional(),
@@ -31,10 +33,17 @@ export async function loadPricingOverrides(filePath: string): Promise<readonly C
   const overrides = overrideFileSchema.parse(JSON.parse(content));
   return Object.entries(overrides).map(([rawAlias, rate]) => {
     const inputNanoPerToken = usdPerTokenToNanoPerToken(rate.inputCostPerToken);
+    const cacheCreationNanoPerToken = rate.cacheCreationInputTokenCost === undefined
+      ? inputNanoPerToken
+      : usdPerTokenToNanoPerToken(rate.cacheCreationInputTokenCost);
     return {
-      cacheCreationNanoPerToken: rate.cacheCreationInputTokenCost === undefined
-        ? inputNanoPerToken
-        : usdPerTokenToNanoPerToken(rate.cacheCreationInputTokenCost),
+      cacheCreation1hNanoPerToken: rate.cacheCreation1hInputTokenCost === undefined
+        ? cacheCreationNanoPerToken
+        : usdPerTokenToNanoPerToken(rate.cacheCreation1hInputTokenCost),
+      cacheCreation5mNanoPerToken: rate.cacheCreation5mInputTokenCost === undefined
+        ? cacheCreationNanoPerToken
+        : usdPerTokenToNanoPerToken(rate.cacheCreation5mInputTokenCost),
+      cacheCreationNanoPerToken,
       cacheReadNanoPerToken: rate.cacheReadInputTokenCost === undefined
         ? inputNanoPerToken
         : usdPerTokenToNanoPerToken(rate.cacheReadInputTokenCost),
@@ -67,6 +76,9 @@ function parseEffectiveAt(value: string | number | undefined): number | null {
 
 function providerFromAlias(rawAlias: string): string {
   const separatorIndex = rawAlias.indexOf("/");
+  if (separatorIndex === -1 && rawAlias.toLowerCase().startsWith("claude-")) {
+    return "anthropic";
+  }
   const provider = separatorIndex === -1 ? "moonshotai" : rawAlias.slice(0, separatorIndex);
   return provider === "moonshot-ai" || provider === "moonshot" ? "moonshotai" : provider;
 }

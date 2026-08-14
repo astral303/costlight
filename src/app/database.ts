@@ -1,9 +1,18 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { callAccountingMigration } from "../call-accounting/schema";
-import { pricingMigration, pricingRateActivationMigration } from "../pricing/schema";
-import { sessionImportMigration } from "../session-import/schema";
+import { cacheWriteTokenMigration, callAccountingMigration } from "../call-accounting/schema";
+import { meteredUsageMigration } from "../metered-usage/schema";
+import {
+  cacheWriteRateMigration,
+  pricingMigration,
+  pricingRateActivationMigration,
+} from "../pricing/schema";
+import {
+  sessionImportMigration,
+  sessionMetadataCheckpointMigration,
+  sessionProviderMigration,
+} from "../session-import/schema";
 
 interface DatabaseMigration {
   name: string;
@@ -16,6 +25,11 @@ const migrations: readonly DatabaseMigration[] = [
   pricingMigration,
   callAccountingMigration,
   pricingRateActivationMigration,
+  sessionProviderMigration,
+  cacheWriteTokenMigration,
+  cacheWriteRateMigration,
+  meteredUsageMigration,
+  sessionMetadataCheckpointMigration,
 ];
 
 export function openDashboardDatabase(databasePath: string): Database {

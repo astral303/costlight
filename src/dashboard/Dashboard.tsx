@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { ConnectionStatus } from "../live-sync/ConnectionStatus";
+import { MeteringDisclosure } from "../metered-usage/MeteringDisclosure";
 import { PricingWarning } from "../pricing/PricingWarning";
 import type {
   AgentRow,
@@ -49,6 +50,15 @@ export function Dashboard() {
     });
   }
 
+  function updateProvider(provider: string): void {
+    setFilters((current) => ({
+      ...current,
+      provider,
+      sessionId: "",
+      workspace: "",
+    }));
+  }
+
   function requestReprice(): void {
     const shouldReprice = window.confirm(
       "Recalculate every historical call with the latest active rates? This changes stored historical totals.",
@@ -93,12 +103,20 @@ export function Dashboard() {
       <FilterBar
         filters={filters}
         onChange={updateFilter}
+        onProviderChange={updateProvider}
         onWorkspaceChange={updateWorkspace}
         options={dashboard.options}
       />
+      {dashboard.health !== null && (
+        <MeteringDisclosure status={dashboard.health.metering.claude} />
+      )}
 
       <section className="metric-grid" aria-label="Cost summary">
-        <Metric label="Total spend" value={formatUsdNano(summary?.totalCostNano ?? 0)} />
+        <Metric
+          label="Total API cost*"
+          labelTitle="Estimated from recorded tokens and configured rates."
+          value={formatUsdNano(summary?.totalCostNano ?? 0)}
+        />
         <Metric label="Today" value={formatUsdNano(summary?.costTodayNano ?? 0)} />
         <Metric label="Active session" value={formatUsdNano(summary?.activeSessionCostNano ?? 0)} />
         <Metric label="Cache hit ratio" value={formatPercentage(summary?.cacheHitRatio ?? 0)} />
@@ -107,16 +125,16 @@ export function Dashboard() {
 
       <PricingWarning
         isWorking={dashboard.isActionRunning}
-        newestSnapshotMs={dashboard.health?.pricing.newestSnapshotMs ?? null}
         onRefresh={() => void dashboard.refreshPricing()}
         onReprice={requestReprice}
+        providers={dashboard.health?.pricing.providers ?? []}
         unpricedCallCount={summary?.unpricedCallCount ?? 0}
       />
 
       <section className="chart-grid">
         <article className="dashboard-panel chart-panel">
           <PanelHeading
-            title={dashboard.timeseries?.resolution === "call" ? "Spend by call" : "Spend by active bucket"}
+            title={dashboard.timeseries?.resolution === "call" ? "API cost by call" : "API cost by active bucket"}
             detail={dashboard.timeseries?.resolution === "call"
               ? "One bar per call · idle time removed"
               : `${dashboard.timeseries?.resolution ?? "automatic"} buckets · idle time removed`}
@@ -130,7 +148,7 @@ export function Dashboard() {
           </Suspense>
         </article>
         <article className="dashboard-panel chart-panel">
-          <PanelHeading title="Cumulative spend" detail="Idle time removed" />
+          <PanelHeading title="Cumulative API cost" detail="Idle time removed" />
           <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
             <CostChart
               kind="cumulative"
@@ -152,7 +170,7 @@ export function Dashboard() {
                 <th scope="col">Agents</th>
                 <th scope="col">Calls</th>
                 <th scope="col">Replays</th>
-                <th scope="col" className="numeric">New spend</th>
+                <th scope="col" className="numeric">API cost</th>
               </tr>
             </thead>
             <tbody>
@@ -184,10 +202,10 @@ export function Dashboard() {
               <tr>
                 <th scope="col">Model</th>
                 <th scope="col">Rate source</th>
-                <th scope="col">Input / cache / output per 1M</th>
+                <th scope="col">Input / cache write (5m, 1h) / read / output per 1M</th>
                 <th scope="col">Tokens</th>
                 <th scope="col">Calls</th>
-                <th scope="col" className="numeric">Spend</th>
+                <th scope="col" className="numeric">API cost</th>
               </tr>
             </thead>
             <tbody>
@@ -199,7 +217,7 @@ export function Dashboard() {
                   </td>
                   <td><RateBadge confidence={model.pricingConfidence} /> <small>{model.pricingBasis}</small></td>
                   <td className="rate-cell">
-                    {formatRate(model.inputUsdPerMillion)} / {formatRate(model.cacheReadUsdPerMillion)} / {formatRate(model.outputUsdPerMillion)}
+                    {formatRate(model.inputUsdPerMillion)} / {formatRate(model.cacheCreation5mUsdPerMillion)}, {formatRate(model.cacheCreation1hUsdPerMillion)} / {formatRate(model.cacheReadUsdPerMillion)} / {formatRate(model.outputUsdPerMillion)}
                   </td>
                   <td>{formatCompactNumber(model.totalTokens)}</td>
                   <td>{model.callCount.toLocaleString()}</td>
@@ -224,15 +242,23 @@ export function Dashboard() {
 interface FilterBarProps {
   filters: DashboardViewFilters;
   onChange: <Key extends keyof DashboardViewFilters>(key: Key, value: DashboardViewFilters[Key]) => void;
+  onProviderChange: (provider: string) => void;
   onWorkspaceChange: (workspace: string) => void;
   options: FilterOptionsResponse;
 }
 
-function FilterBar({ filters, onChange, onWorkspaceChange, options }: FilterBarProps) {
+function FilterBar({
+  filters,
+  onChange,
+  onProviderChange,
+  onWorkspaceChange,
+  options,
+}: FilterBarProps) {
   const isShowingIndividualCalls = filters.sessionId !== "";
-  const sessionOptions = filters.workspace === ""
-    ? options.sessions
-    : options.sessions.filter((session) => session.workspace === filters.workspace);
+  const sessionOptions = options.sessions.filter((session) => (
+    (filters.provider === "" || session.provider === filters.provider)
+    && (filters.workspace === "" || session.workspace === filters.workspace)
+  ));
   return (
     <section className="filter-bar" aria-label="Dashboard filters">
       <FilterSelect label="Range" value={filters.range} onChange={(value) => onChange("range", value as DashboardViewFilters["range"])} options={[
@@ -241,6 +267,7 @@ function FilterBar({ filters, onChange, onWorkspaceChange, options }: FilterBarP
         { label: "Last 7 days", value: "7d" },
         { label: "Last 30 days", value: "30d" },
       ]} />
+      <FilterSelect label="Provider" value={filters.provider} onChange={onProviderChange} options={options.providers} includeAll />
       <FilterSelect label="Workspace" value={filters.workspace} onChange={onWorkspaceChange} options={options.workspaces} includeAll />
       <FilterSelect label="Session" value={filters.sessionId} onChange={(value) => onChange("sessionId", value)} options={sessionOptions} includeAll />
       <FilterSelect label="Model" value={filters.model} onChange={(value) => onChange("model", value)} options={options.models} includeAll />
@@ -300,14 +327,15 @@ function FilterSelect({
   );
 }
 
-function Metric({ detail, label, value }: {
+function Metric({ detail, label, labelTitle, value }: {
   detail?: string;
   label: string;
+  labelTitle?: string;
   value: string;
 }) {
   return (
     <div className="metric">
-      <span>{label}</span>
+      <span title={labelTitle}>{label}</span>
       <strong>{value}</strong>
       {detail !== undefined && <small>{detail}</small>}
     </div>

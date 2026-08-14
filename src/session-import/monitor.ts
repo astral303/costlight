@@ -1,4 +1,3 @@
-import { basename, join } from "node:path";
 import { watch, type FSWatcher } from "chokidar";
 import type { ImportSummary, SessionImporter } from "./importer";
 
@@ -17,13 +16,21 @@ export interface IngestionStatus {
 interface SessionMonitorOptions {
   onDataChanged?: (summary: ImportSummary) => void;
   onStatusChanged?: (status: IngestionStatus) => void;
+  prepareForReconciliation?: (
+    trigger: "manual" | "periodic" | "startup" | "watch",
+  ) => Promise<void>;
   reconciliationIntervalMs?: number;
-  sourceRoots: readonly string[];
   watchFiles: boolean;
 }
 
+interface MonitoredImporter {
+  getWatchDirectories: () => readonly string[];
+  isRelevantFile: (filePath: string) => boolean;
+  reconcile: SessionImporter["reconcile"];
+}
+
 export class SessionMonitor {
-  readonly #importer: Pick<SessionImporter, "reconcile">;
+  readonly #importer: MonitoredImporter;
   readonly #options: SessionMonitorOptions;
   #debounceTimer: ReturnType<typeof setTimeout> | null = null;
   #isClosed = false;
@@ -32,7 +39,7 @@ export class SessionMonitor {
   #status: IngestionStatus;
   #watcher: FSWatcher | null = null;
 
-  constructor(importer: Pick<SessionImporter, "reconcile">, options: SessionMonitorOptions) {
+  constructor(importer: MonitoredImporter, options: SessionMonitorOptions) {
     this.#importer = importer;
     this.#options = options;
     this.#status = {
@@ -47,14 +54,13 @@ export class SessionMonitor {
 
   async start(): Promise<ImportSummary> {
     if (this.#options.watchFiles) {
-      const sessionDirectories = this.#options.sourceRoots.map((root) => join(root, "sessions"));
-      this.#watcher = watch(sessionDirectories, {
+      this.#watcher = watch([...this.#importer.getWatchDirectories()], {
         awaitWriteFinish: { pollInterval: 50, stabilityThreshold: 100 },
         ignoreInitial: true,
         persistent: true,
       });
       this.#watcher.on("all", (_eventName, changedPath) => {
-        if (isRelevantKimiFile(changedPath)) {
+        if (this.#importer.isRelevantFile(changedPath)) {
           this.#scheduleWatchedReconciliation();
         }
       });
@@ -120,6 +126,7 @@ export class SessionMonitor {
     this.#emitStatus();
 
     try {
+      await this.#options.prepareForReconciliation?.(trigger);
       const summary = await this.#importer.reconcile();
       this.#status = {
         ...this.#status,
@@ -159,11 +166,6 @@ export class SessionMonitor {
   #emitStatus(): void {
     this.#options.onStatusChanged?.(this.#status);
   }
-}
-
-function isRelevantKimiFile(filePath: string): boolean {
-  const fileName = basename(filePath);
-  return fileName === "state.json" || fileName === "wire.jsonl";
 }
 
 function didLedgerChange(summary: ImportSummary): boolean {

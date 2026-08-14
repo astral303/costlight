@@ -9,6 +9,12 @@ export interface CcusageAuditResult {
   replayExcludedCount: number;
 }
 
+interface LocalAuditTotals {
+  canonical_call_count: number;
+  occurrence_count: number;
+  total_cost_nano: number;
+}
+
 export async function auditWithCcusage(database: Database): Promise<CcusageAuditResult> {
   const packageRunnerPath = Bun.which("bunx");
   if (packageRunnerPath === null) {
@@ -30,18 +36,7 @@ export async function auditWithCcusage(database: Database): Promise<CcusageAudit
   }
 
   const ccusageTotalUsd = extractCcusageTotalUsd(JSON.parse(output));
-  const local = database
-    .query<{
-      canonical_call_count: number;
-      occurrence_count: number;
-      total_cost_nano: number;
-    }, []>(`
-      SELECT
-        (SELECT COUNT(*) FROM api_calls) AS canonical_call_count,
-        (SELECT COUNT(*) FROM usage_occurrences) AS occurrence_count,
-        (SELECT COALESCE(SUM(total_cost_nano), 0) FROM api_calls) AS total_cost_nano
-    `)
-    .get() ?? { canonical_call_count: 0, occurrence_count: 0, total_cost_nano: 0 };
+  const local = queryKimiAuditTotals(database);
   const localTotalUsd = local.total_cost_nano / 1_000_000_000;
   return {
     canonicalCallCount: local.canonical_call_count,
@@ -51,6 +46,29 @@ export async function auditWithCcusage(database: Database): Promise<CcusageAudit
     occurrenceCount: local.occurrence_count,
     replayExcludedCount: local.occurrence_count - local.canonical_call_count,
   };
+}
+
+export function queryKimiAuditTotals(database: Database): LocalAuditTotals {
+  return database
+    .query<LocalAuditTotals, []>(`
+      SELECT
+        (
+          SELECT COUNT(*) FROM api_calls
+          WHERE provider = 'moonshotai' AND is_metered = 1
+        ) AS canonical_call_count,
+        (
+          SELECT COUNT(*)
+          FROM usage_occurrences AS occurrence
+          JOIN sessions AS session ON session.session_id = occurrence.session_id
+          WHERE session.provider = 'moonshotai' AND occurrence.is_metered = 1
+        ) AS occurrence_count,
+        (
+          SELECT COALESCE(SUM(total_cost_nano), 0)
+          FROM api_calls
+          WHERE provider = 'moonshotai' AND is_metered = 1
+        ) AS total_cost_nano
+    `)
+    .get() ?? { canonical_call_count: 0, occurrence_count: 0, total_cost_nano: 0 };
 }
 
 export function extractCcusageTotalUsd(value: unknown): number {

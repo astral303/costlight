@@ -14,6 +14,7 @@ export interface DashboardViewFilters {
   agentType: "" | "main" | "sub" | "unknown";
   bucket: "auto" | BucketSize;
   model: string;
+  provider: string;
   range: "all" | "today" | "7d" | "30d";
   sessionId: string;
   sessionSort: "cost" | "recent" | "start";
@@ -25,6 +26,7 @@ export const initialDashboardFilters: DashboardViewFilters = {
   agentType: "",
   bucket: "auto",
   model: "",
+  provider: "",
   range: "all",
   sessionId: "",
   sessionSort: "cost",
@@ -38,8 +40,27 @@ interface HealthResponse {
     lastSuccessfulScanMs: number | null;
     watcherStatus: string;
   };
+  metering: {
+    claude: {
+      detectedAtMs: number | null;
+      error: string | null;
+      lastAttemptAtMs: number | null;
+      lastSuccessAtMs: number | null;
+      policy: "enterprise-api" | "pro-fable" | "subscription-excluded" | null;
+      subscriptionType: string | null;
+    };
+  };
   pricing: {
-    newestSnapshotMs: number | null;
+    providers: readonly {
+      error: string | null;
+      hasOverrides: boolean;
+      isStale: boolean;
+      provider: "anthropic" | "moonshotai";
+      refreshStatus: "failed" | "not-attempted" | "partial-failure" | "succeeded";
+      sourceKind: "bundled" | "remote";
+      sourceName: string;
+      updatedAtMs: number | null;
+    }[];
   };
   status: "ok" | "warning";
   warnings: readonly string[];
@@ -59,6 +80,7 @@ interface DashboardDataState {
 const emptyOptions: FilterOptionsResponse = {
   agents: [],
   models: [],
+  providers: [],
   sessions: [],
   workspaces: [],
 };
@@ -155,6 +177,7 @@ function createQueryString(filters: DashboardViewFilters): string {
   setOptionalParameter(parameters, "workspace", filters.workspace);
   setOptionalParameter(parameters, "session", filters.sessionId);
   setOptionalParameter(parameters, "model", filters.model);
+  setOptionalParameter(parameters, "provider", filters.provider);
   setOptionalParameter(parameters, "agentType", filters.agentType);
   setOptionalParameter(parameters, "agentId", filters.agentId);
   return parameters.toString();

@@ -1,21 +1,35 @@
 import type { CatalogRate } from "./bundled-rates";
 import { usdPerMillionToNanoPerToken, usdPerTokenToNanoPerToken } from "./bundled-rates";
+import { parseAnthropicPricingMarkdown } from "./anthropic-catalog";
 
 export interface RemoteCatalogDefinition {
-  name: "litellm" | "models.dev";
-  parse: (value: unknown) => readonly CatalogRate[];
+  fileExtension: "json" | "md";
+  name: "anthropic" | "litellm" | "models.dev";
+  parseContent: (content: string) => readonly CatalogRate[];
+  provider: "anthropic" | "moonshotai";
   url: string;
 }
 
 export const remoteCatalogs: readonly RemoteCatalogDefinition[] = [
   {
+    fileExtension: "md",
+    name: "anthropic",
+    parseContent: parseAnthropicPricingMarkdown,
+    provider: "anthropic",
+    url: "https://platform.claude.com/docs/en/about-claude/pricing.md",
+  },
+  {
+    fileExtension: "json",
     name: "models.dev",
-    parse: parseModelsDevCatalog,
+    parseContent: (content) => parseModelsDevCatalog(JSON.parse(content)),
+    provider: "moonshotai",
     url: "https://models.dev/api.json",
   },
   {
+    fileExtension: "json",
     name: "litellm",
-    parse: parseLiteLlmCatalog,
+    parseContent: (content) => parseLiteLlmCatalog(JSON.parse(content)),
+    provider: "moonshotai",
     url: "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
   },
 ];
@@ -44,6 +58,8 @@ export function parseModelsDevCatalog(value: unknown): readonly CatalogRate[] {
     const cacheRead = nonnegativeNumber(rawModel.cost.cache_read) ?? input;
     const cacheCreation = nonnegativeNumber(rawModel.cost.cache_write);
     rates.push({
+      cacheCreation1hNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation ?? input),
+      cacheCreation5mNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation ?? input),
       cacheCreationNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation ?? input),
       cacheReadNanoPerToken: usdPerMillionToNanoPerToken(cacheRead),
       confidence: cacheCreation === null ? "inferred" : "exact",
@@ -82,6 +98,8 @@ export function parseLiteLlmCatalog(value: unknown): readonly CatalogRate[] {
     const cacheRead = nonnegativeNumber(rawModel.cache_read_input_token_cost) ?? input;
     const cacheCreation = nonnegativeNumber(rawModel.cache_creation_input_token_cost);
     rates.push({
+      cacheCreation1hNanoPerToken: usdPerTokenToNanoPerToken(cacheCreation ?? input),
+      cacheCreation5mNanoPerToken: usdPerTokenToNanoPerToken(cacheCreation ?? input),
       cacheCreationNanoPerToken: usdPerTokenToNanoPerToken(cacheCreation ?? input),
       cacheReadNanoPerToken: usdPerTokenToNanoPerToken(cacheRead),
       confidence: cacheCreation === null ? "inferred" : "exact",

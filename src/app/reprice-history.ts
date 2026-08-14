@@ -9,14 +9,16 @@ try {
   const catalog = new PricingCatalog(database, options.dataDirectory);
   await catalog.initialize();
   const pricingRefresh = await catalog.forceRefresh();
-  const ledger = new CallLedger(database, catalog.resolve.bind(catalog));
+  const ledger = new CallLedger(database, catalog);
   ledger.repriceAllCalls();
   const totals = database
     .query<{ call_count: number; total_cost_nano: number; unpriced_call_count: number }, []>(`
       SELECT
-        COUNT(*) AS call_count,
-        COALESCE(SUM(total_cost_nano), 0) AS total_cost_nano,
-        SUM(CASE WHEN total_cost_nano IS NULL THEN 1 ELSE 0 END) AS unpriced_call_count
+        COALESCE(SUM(CASE WHEN is_metered = 1 THEN 1 ELSE 0 END), 0) AS call_count,
+        COALESCE(SUM(CASE WHEN is_metered = 1 THEN total_cost_nano ELSE 0 END), 0)
+          AS total_cost_nano,
+        COALESCE(SUM(CASE WHEN is_metered = 1 AND total_cost_nano IS NULL THEN 1 ELSE 0 END), 0)
+          AS unpriced_call_count
       FROM api_calls
     `)
     .get();

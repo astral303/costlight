@@ -107,7 +107,9 @@ export function CostChart({ kind, points, zoomContext }: CostChartProps) {
       ref={containerRef}
       className="cost-chart"
       role="img"
-      aria-label={kind === "bucket" ? "Spend by active observation" : "Cumulative spend by active observation"}
+      aria-label={kind === "bucket"
+        ? "API cost by active observation"
+        : "Cumulative API cost by active observation"}
     />
   );
 }

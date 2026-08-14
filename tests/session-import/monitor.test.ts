@@ -9,6 +9,7 @@ const emptySummary: ImportSummary = {
   malformedLineCount: 0,
   removedOccurrenceCount: 0,
   rewrittenSourceCount: 0,
+  sourceDataBytesRead: 0,
   sourceErrorCount: 0,
 };
 
@@ -18,6 +19,8 @@ describe("SessionMonitor", () => {
     let maximumActiveReconciliations = 0;
     let reconciliationCount = 0;
     const monitor = new SessionMonitor({
+      getWatchDirectories: () => [],
+      isRelevantFile: () => false,
       async reconcile() {
         activeReconciliations += 1;
         maximumActiveReconciliations = Math.max(maximumActiveReconciliations, activeReconciliations);
@@ -28,7 +31,6 @@ describe("SessionMonitor", () => {
       },
     }, {
       reconciliationIntervalMs: 60_000,
-      sourceRoots: [],
       watchFiles: false,
     });
 
@@ -41,6 +43,37 @@ describe("SessionMonitor", () => {
       ]);
       expect(maximumActiveReconciliations).toBe(1);
       expect(reconciliationCount).toBe(4);
+    } finally {
+      await monitor.close();
+    }
+  });
+
+  test("prepares one account snapshot before each serialized import", async () => {
+    const events: string[] = [];
+    const monitor = new SessionMonitor({
+      getWatchDirectories: () => [],
+      isRelevantFile: () => false,
+      async reconcile() {
+        events.push("import");
+        return emptySummary;
+      },
+    }, {
+      prepareForReconciliation: async (trigger) => {
+        events.push(`prepare:${trigger}`);
+      },
+      reconciliationIntervalMs: 60_000,
+      watchFiles: false,
+    });
+
+    try {
+      await monitor.start();
+      await monitor.requestReconciliation("manual");
+      expect(events).toEqual([
+        "prepare:startup",
+        "import",
+        "prepare:manual",
+        "import",
+      ]);
     } finally {
       await monitor.close();
     }

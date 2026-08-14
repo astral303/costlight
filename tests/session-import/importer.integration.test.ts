@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDashboardDatabase } from "../../src/app/database";
 import { SessionImporter } from "../../src/session-import/importer";
+import { createKimiImportProvider } from "../../src/session-import/kimi/provider";
 
 const temporaryDirectories: string[] = [];
 
@@ -18,7 +19,9 @@ describe("SessionImporter", () => {
     const fixtureRoot = await createFixtureRoot();
     const database = openDashboardDatabase(":memory:");
     try {
-      const importer = new SessionImporter(database, [fixtureRoot.root]);
+      const importer = new SessionImporter(database, [
+        createKimiImportProvider([fixtureRoot.root]),
+      ]);
 
       const firstImport = await importer.reconcile();
       expect(firstImport.insertedOccurrenceCount).toBe(1);
@@ -54,7 +57,9 @@ describe("SessionImporter", () => {
     const fixtureRoot = await createFixtureRoot();
     const database = openDashboardDatabase(":memory:");
     try {
-      const importer = new SessionImporter(database, [fixtureRoot.root]);
+      const importer = new SessionImporter(database, [
+        createKimiImportProvider([fixtureRoot.root]),
+      ]);
       await importer.reconcile();
       const subagentDirectory = join(fixtureRoot.sessionDirectory, "agents", "agent-0");
       await mkdir(subagentDirectory, { recursive: true });
@@ -79,6 +84,11 @@ describe("SessionImporter", () => {
 
       const subagentImport = await importer.reconcile();
       expect(subagentImport.insertedOccurrenceCount).toBe(1);
+      expect(database.query<{ agent_type: string; parent_agent_id: string | null }, []>(`
+        SELECT agent_type, parent_agent_id FROM agents WHERE agent_id = 'agent-0'
+      `).get()).toEqual({ agent_type: "sub", parent_agent_id: "main" });
+
+      await importer.reconcile();
       expect(database.query<{ agent_type: string; parent_agent_id: string | null }, []>(`
         SELECT agent_type, parent_agent_id FROM agents WHERE agent_id = 'agent-0'
       `).get()).toEqual({ agent_type: "sub", parent_agent_id: "main" });

@@ -49,3 +49,14 @@ export const pricingRateActivationMigration = {
       ON model_rates(is_active, provider, model_key, raw_alias);
   `,
 } as const;
+
+export const cacheWriteRateMigration = {
+  version: 7,
+  name: "cache write TTL pricing",
+  sql: `
+    ALTER TABLE model_rates
+      ADD COLUMN cache_creation_5m_nano_per_token INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE model_rates
+      ADD COLUMN cache_creation_1h_nano_per_token INTEGER NOT NULL DEFAULT 0;
+  `,
+} as const;

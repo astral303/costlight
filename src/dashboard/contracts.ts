@@ -7,6 +7,7 @@ export interface DashboardFilters {
   bucket: "auto" | BucketSize;
   fromMs?: number;
   model?: string;
+  provider?: string;
   sessionId?: string;
   sessionSort: "cost" | "recent" | "start";
   timeZone: string;
@@ -75,6 +76,8 @@ export interface AgentRow {
 }
 
 export interface ModelRow {
+  cacheCreation1hUsdPerMillion: number | null;
+  cacheCreation5mUsdPerMillion: number | null;
   cacheCreationUsdPerMillion: number | null;
   cacheReadUsdPerMillion: number | null;
   callCount: number;
@@ -95,12 +98,14 @@ export interface FilterOption {
 }
 
 export interface SessionFilterOption extends FilterOption {
+  provider: string;
   workspace: string;
 }
 
 export interface FilterOptionsResponse {
   agents: readonly FilterOption[];
   models: readonly FilterOption[];
+  providers: readonly FilterOption[];
   sessions: readonly SessionFilterOption[];
   workspaces: readonly FilterOption[];
 }

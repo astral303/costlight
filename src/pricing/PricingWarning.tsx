@@ -2,30 +2,34 @@ import "./pricing-warning.css";
 
 interface PricingWarningProps {
   isWorking: boolean;
-  newestSnapshotMs: number | null;
   onRefresh: () => void;
   onReprice: () => void;
+  providers: readonly {
+    error: string | null;
+    hasOverrides: boolean;
+    isStale: boolean;
+    provider: "anthropic" | "moonshotai";
+    refreshStatus: "failed" | "not-attempted" | "partial-failure" | "succeeded";
+    sourceKind: "bundled" | "remote";
+    sourceName: string;
+    updatedAtMs: number | null;
+  }[];
   unpricedCallCount: number;
 }
 
 export function PricingWarning({
   isWorking,
-  newestSnapshotMs,
   onRefresh,
   onReprice,
+  providers,
   unpricedCallCount,
 }: PricingWarningProps) {
-  const snapshotLabel = newestSnapshotMs === null
-    ? "bundled rates"
-    : new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(newestSnapshotMs);
+  const pricingLabel = providers.map(formatProviderStatus).join(" · ") || "bundled rates";
 
   return (
     <details className={`pricing-menu ${unpricedCallCount > 0 ? "has-warning" : ""}`}>
       <summary>
-        <span>Pricing updated: {snapshotLabel}</span>
+        <span>Pricing: {pricingLabel}</span>
         {unpricedCallCount > 0 && (
           <strong>
             {unpricedCallCount.toLocaleString()} unpriced call{unpricedCallCount === 1 ? "" : "s"}
@@ -43,4 +47,21 @@ export function PricingWarning({
       </div>
     </details>
   );
+}
+
+function formatProviderStatus(provider: PricingWarningProps["providers"][number]): string {
+  const providerName = provider.provider === "anthropic" ? "Claude" : "Kimi";
+  const sourceName = provider.sourceName === "anthropic" ? "official" : provider.sourceName;
+  const source = provider.updatedAtMs === null
+    ? sourceName
+    : `${sourceName} ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" })
+      .format(provider.updatedAtMs)}`;
+  const qualifiers = [
+    ...(provider.hasOverrides ? ["overrides"] : []),
+    ...(provider.isStale ? ["stale"] : []),
+    ...(provider.refreshStatus === "failed" ? ["refresh failed"] : []),
+    ...(provider.refreshStatus === "partial-failure" ? ["partial refresh failure"] : []),
+  ];
+  const qualifierText = qualifiers.length === 0 ? "" : ` (${qualifiers.join(", ")})`;
+  return `${providerName} ${source}${qualifierText}`;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseWireChunk } from "../../src/session-import/wire-parser";
+import { parseWireChunk } from "../../../src/session-import/kimi/wire-parser";
 
 const encoder = new TextEncoder();
 
@@ -53,6 +53,8 @@ describe("parseWireChunk", () => {
       stepUuid: "step-uuid-1",
       tokens: {
         cacheCreation: 20,
+        cacheCreation1h: 0,
+        cacheCreation5m: 0,
         cacheRead: 300,
         inputOther: 100,
         output: 40,

@@ -22,6 +22,9 @@ export function createEventFingerprint(record: ParsedUsageRecord): string {
 }
 
 export function resolveProvider(rawModel: string): string {
+  if (rawModel.toLowerCase().startsWith("claude-")) {
+    return "anthropic";
+  }
   const [provider = "unknown"] = rawModel.toLowerCase().split("/", 1);
   if (provider === "moonshot-ai" || provider === "moonshot") {
     return "moonshotai";

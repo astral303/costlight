@@ -11,6 +11,8 @@ import { remoteCatalogs, type RemoteCatalogDefinition } from "./remote-catalogs"
 const CATALOG_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
 
 interface StoredRate {
+  cache_creation_1h_nano_per_token: number;
+  cache_creation_5m_nano_per_token: number;
   cache_creation_nano_per_token: number;
   cache_read_nano_per_token: number;
   confidence: RateQuote["confidence"];
@@ -23,6 +25,10 @@ interface StoredRate {
   source_name: string;
 }
 
+interface StoredRateById extends StoredRate {
+  provider: string;
+}
+
 interface LastSnapshot {
   etag: string | null;
   fetched_at_ms: number;
@@ -31,6 +37,7 @@ interface LastSnapshot {
 
 export interface CatalogRefreshResult {
   error: string | null;
+  provider: string;
   rateCount: number;
   sourceName: string;
   status: "failed" | "not-modified" | "refreshed" | "skipped";
@@ -67,6 +74,8 @@ export class PricingCatalog {
           rate.output_nano_per_token,
           rate.cache_read_nano_per_token,
           rate.cache_creation_nano_per_token,
+          rate.cache_creation_5m_nano_per_token,
+          rate.cache_creation_1h_nano_per_token,
           rate.source_name,
           rate.confidence,
           rate.effective_at_ms
@@ -86,6 +95,8 @@ export class PricingCatalog {
 
     return {
       basis: describeRateBasis(rate),
+      cacheCreation1hNanoPerToken: rate.cache_creation_1h_nano_per_token,
+      cacheCreation5mNanoPerToken: rate.cache_creation_5m_nano_per_token,
       cacheCreationNanoPerToken: rate.cache_creation_nano_per_token,
       cacheReadNanoPerToken: rate.cache_read_nano_per_token,
       confidence: rate.confidence,
@@ -93,6 +104,35 @@ export class PricingCatalog {
       outputNanoPerToken: rate.output_nano_per_token,
       rateId: rate.rate_id,
       resolvedModelKey: `${provider}/${rate.model_key}`,
+    };
+  }
+
+  resolveByRateId(rateId: number): RateQuote | null {
+    const rate = this.#database
+      .query<StoredRateById, [number]>(`
+        SELECT rate_id, provider, model_key, raw_alias,
+               input_nano_per_token, output_nano_per_token,
+               cache_read_nano_per_token, cache_creation_nano_per_token,
+               cache_creation_5m_nano_per_token, cache_creation_1h_nano_per_token,
+               source_name, confidence, effective_at_ms
+        FROM model_rates
+        WHERE rate_id = ?
+      `)
+      .get(rateId);
+    if (rate === null) {
+      return null;
+    }
+    return {
+      basis: describeRateBasis(rate),
+      cacheCreation1hNanoPerToken: rate.cache_creation_1h_nano_per_token,
+      cacheCreation5mNanoPerToken: rate.cache_creation_5m_nano_per_token,
+      cacheCreationNanoPerToken: rate.cache_creation_nano_per_token,
+      cacheReadNanoPerToken: rate.cache_read_nano_per_token,
+      confidence: rate.confidence,
+      inputNanoPerToken: rate.input_nano_per_token,
+      outputNanoPerToken: rate.output_nano_per_token,
+      rateId: rate.rate_id,
+      resolvedModelKey: `${rate.provider}/${rate.model_key}`,
     };
   }
 
@@ -112,12 +152,15 @@ export class PricingCatalog {
     return this.#lastRefreshResults;
   }
 
-  getNewestSnapshotTimestamp(): number | null {
-    return this.#database
-      .query<{ fetched_at_ms: number | null }, []>(
-        "SELECT MAX(fetched_at_ms) AS fetched_at_ms FROM pricing_snapshots WHERE is_last_good = 1",
-      )
-      .get()?.fetched_at_ms ?? null;
+  getProviderPricingStatuses(): readonly ProviderPricingStatus[] {
+    return [
+      this.#getProviderPricingStatus("anthropic", ["anthropic"], "bundled-claude-%"),
+      this.#getProviderPricingStatus(
+        "moonshotai",
+        ["models.dev", "litellm"],
+        "bundled-kimi-%",
+      ),
+    ];
   }
 
   async #refresh(force: boolean): Promise<readonly CatalogRefreshResult[]> {
@@ -148,11 +191,19 @@ export class PricingCatalog {
       && lastSnapshot !== null
       && Date.now() - lastSnapshot.fetched_at_ms < CATALOG_MAX_AGE_MS
     ) {
-      return { error: null, rateCount: 0, sourceName: catalog.name, status: "skipped" };
+      return {
+        error: null,
+        provider: catalog.provider,
+        rateCount: 0,
+        sourceName: catalog.name,
+        status: "skipped",
+      };
     }
 
     try {
-      const headers = new Headers({ Accept: "application/json" });
+      const headers = new Headers({
+        Accept: catalog.fileExtension === "md" ? "text/markdown" : "application/json",
+      });
       if (lastSnapshot?.etag !== null && lastSnapshot?.etag !== undefined) {
         headers.set("If-None-Match", lastSnapshot.etag);
       }
@@ -161,20 +212,33 @@ export class PricingCatalog {
         this.#database
           .query("UPDATE pricing_snapshots SET fetched_at_ms = ? WHERE snapshot_id = ?")
           .run(Date.now(), lastSnapshot.snapshot_id);
-        return { error: null, rateCount: 0, sourceName: catalog.name, status: "not-modified" };
+        return {
+          error: null,
+          provider: catalog.provider,
+          rateCount: 0,
+          sourceName: catalog.name,
+          status: "not-modified",
+        };
       }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const content = await response.text();
-      const rates = catalog.parse(JSON.parse(content));
+      const rates = catalog.parseContent(content);
       this.#storeRemoteSnapshot(catalog, content, response.headers.get("etag"), rates);
       await this.#writeLastGoodCatalog(catalog.name, content);
-      return { error: null, rateCount: rates.length, sourceName: catalog.name, status: "refreshed" };
+      return {
+        error: null,
+        provider: catalog.provider,
+        rateCount: rates.length,
+        sourceName: catalog.name,
+        status: "refreshed",
+      };
     } catch (error) {
       return {
         error: errorMessage(error),
+        provider: catalog.provider,
         rateCount: 0,
         sourceName: catalog.name,
         status: "failed",
@@ -192,6 +256,77 @@ export class PricingCatalog {
         LIMIT 1
       `)
       .get(sourceName);
+  }
+
+  #getProviderPricingStatus(
+    provider: ProviderPricingStatus["provider"],
+    remoteSourceNames: readonly string[],
+    bundledSourcePattern: string,
+  ): ProviderPricingStatus {
+    const refreshResults = this.#lastRefreshResults.filter((result) => (
+      result.provider === provider
+    ));
+    const failures = refreshResults.filter((result) => result.status === "failed");
+    const refreshStatus = refreshResults.length === 0
+      ? "not-attempted"
+      : failures.length === refreshResults.length
+        ? "failed"
+        : failures.length > 0
+          ? "partial-failure"
+          : "succeeded";
+    const error = failures.length === 0
+      ? null
+      : failures.map((result) => `${result.sourceName}: ${result.error ?? "refresh failed"}`)
+        .join("; ");
+    const hasOverrides = this.#database
+      .query<{ count: number }, [string]>(`
+        SELECT COUNT(*) AS count
+        FROM model_rates
+        WHERE provider = ? AND source_name = 'user-override' AND is_active = 1
+      `)
+      .get(provider)?.count !== 0;
+    const placeholders = remoteSourceNames.map(() => "?").join(", ");
+    const remote = this.#database
+      .query(`
+        SELECT source_name, fetched_at_ms
+        FROM pricing_snapshots
+        WHERE is_last_good = 1 AND source_name IN (${placeholders})
+        ORDER BY fetched_at_ms DESC
+        LIMIT 1
+      `)
+      .get(...remoteSourceNames) as { fetched_at_ms: number; source_name: string } | null;
+    if (remote !== null) {
+      return {
+        error,
+        hasOverrides,
+        isStale: Date.now() - remote.fetched_at_ms >= CATALOG_MAX_AGE_MS,
+        provider,
+        refreshStatus,
+        sourceKind: "remote",
+        sourceName: remote.source_name,
+        updatedAtMs: remote.fetched_at_ms,
+      };
+    }
+
+    const bundled = this.#database
+      .query<{ source_name: string }, [string, string]>(`
+        SELECT source_name
+        FROM model_rates
+        WHERE provider = ? AND is_active = 1 AND source_name LIKE ?
+        ORDER BY created_at_ms DESC, source_name
+        LIMIT 1
+      `)
+      .get(provider, bundledSourcePattern);
+    return {
+      error,
+      hasOverrides,
+      isStale: false,
+      provider,
+      refreshStatus,
+      sourceKind: "bundled",
+      sourceName: bundled?.source_name ?? "bundled unavailable",
+      updatedAtMs: null,
+    };
   }
 
   #storeRemoteSnapshot(
@@ -253,6 +388,8 @@ export class PricingCatalog {
             number,
             number,
             number,
+            number,
+            number,
             string,
             string,
             number | null,
@@ -267,6 +404,8 @@ export class PricingCatalog {
               AND output_nano_per_token = ?
               AND cache_read_nano_per_token = ?
               AND cache_creation_nano_per_token = ?
+              AND cache_creation_5m_nano_per_token = ?
+              AND cache_creation_1h_nano_per_token = ?
               AND source_name = ?
               AND confidence = ?
               AND effective_at_ms IS ?
@@ -281,6 +420,8 @@ export class PricingCatalog {
             rate.outputNanoPerToken,
             rate.cacheReadNanoPerToken,
             rate.cacheCreationNanoPerToken,
+            rate.cacheCreation5mNanoPerToken,
+            rate.cacheCreation1hNanoPerToken,
             rate.sourceName,
             rate.confidence,
             rate.effectiveAtMs,
@@ -302,8 +443,9 @@ export class PricingCatalog {
       INSERT INTO model_rates (
         snapshot_id, provider, model_key, raw_alias, input_nano_per_token,
         output_nano_per_token, cache_read_nano_per_token, cache_creation_nano_per_token,
+        cache_creation_5m_nano_per_token, cache_creation_1h_nano_per_token,
         source_name, confidence, effective_at_ms, created_at_ms
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const createdAtMs = Date.now();
     for (const rate of rates) {
@@ -316,6 +458,8 @@ export class PricingCatalog {
         rate.outputNanoPerToken,
         rate.cacheReadNanoPerToken,
         rate.cacheCreationNanoPerToken,
+        rate.cacheCreation5mNanoPerToken,
+        rate.cacheCreation1hNanoPerToken,
         rate.sourceName,
         rate.confidence,
         rate.effectiveAtMs,
@@ -325,7 +469,9 @@ export class PricingCatalog {
   }
 
   async #writeLastGoodCatalog(sourceName: string, content: string): Promise<void> {
-    const destination = join(this.#dataDirectory, `pricing-${sourceName}.json`);
+    const extension = remoteCatalogs.find((catalog) => catalog.name === sourceName)?.fileExtension
+      ?? "json";
+    const destination = join(this.#dataDirectory, `pricing-${sourceName}.${extension}`);
     const temporaryPath = `${destination}.tmp`;
     await Bun.write(temporaryPath, content);
     await rename(temporaryPath, destination);
@@ -342,9 +488,20 @@ function compareRatePriority(left: StoredRate, right: StoredRate): number {
 
 function sourcePriority(sourceName: string): number {
   if (sourceName === "user-override") return 0;
-  if (sourceName === "models.dev") return 1;
+  if (sourceName === "anthropic" || sourceName === "models.dev") return 1;
   if (sourceName === "litellm") return 2;
   return 3;
+}
+
+export interface ProviderPricingStatus {
+  error: string | null;
+  hasOverrides: boolean;
+  isStale: boolean;
+  provider: "anthropic" | "moonshotai";
+  refreshStatus: "failed" | "not-attempted" | "partial-failure" | "succeeded";
+  sourceKind: "bundled" | "remote";
+  sourceName: string;
+  updatedAtMs: number | null;
 }
 
 function describeRateBasis(rate: StoredRate): string {

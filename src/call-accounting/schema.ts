@@ -60,3 +60,18 @@ export const callAccountingMigration = {
     CREATE INDEX api_calls_filter_index ON api_calls(session_id, agent_id, raw_model, timestamp_ms);
   `,
 } as const;
+
+export const cacheWriteTokenMigration = {
+  version: 6,
+  name: "cache write TTL token accounting",
+  sql: `
+    ALTER TABLE usage_occurrences
+      ADD COLUMN cache_creation_5m_tokens INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE usage_occurrences
+      ADD COLUMN cache_creation_1h_tokens INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE api_calls
+      ADD COLUMN cache_creation_5m_tokens INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE api_calls
+      ADD COLUMN cache_creation_1h_tokens INTEGER NOT NULL DEFAULT 0;
+  `,
+} as const;

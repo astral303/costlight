@@ -71,9 +71,23 @@ beforeEach(() => {
       return Response.json({
         agents: [],
         models: [],
+        providers: [
+          { label: "Kimi", value: "moonshotai" },
+          { label: "Claude", value: "anthropic" },
+        ],
         sessions: [
-          { label: "Test session", value: "session-1", workspace: "workspace-1" },
-          { label: "Other session", value: "session-2", workspace: "workspace-2" },
+          {
+            label: "Test session",
+            provider: "moonshotai",
+            value: "session-1",
+            workspace: "workspace-1",
+          },
+          {
+            label: "Other session",
+            provider: "anthropic",
+            value: "session-2",
+            workspace: "workspace-2",
+          },
         ],
         workspaces: [
           { label: "Workspace one", value: "workspace-1" },
@@ -85,7 +99,40 @@ beforeEach(() => {
       return Response.json({
         dataVersion: 1,
         ingestion: { isScanning: false, lastSuccessfulScanMs: 1, watcherStatus: "running" },
-        pricing: { newestSnapshotMs: 1 },
+        metering: {
+          claude: {
+            detectedAtMs: 1,
+            error: null,
+            lastAttemptAtMs: 1,
+            lastSuccessAtMs: 1,
+            policy: "pro-fable",
+            subscriptionType: "pro",
+          },
+        },
+        pricing: {
+          providers: [
+            {
+              error: null,
+              hasOverrides: false,
+              isStale: false,
+              provider: "anthropic",
+              refreshStatus: "not-attempted",
+              sourceKind: "bundled",
+              sourceName: "bundled-claude-2026-08-09",
+              updatedAtMs: null,
+            },
+            {
+              error: null,
+              hasOverrides: false,
+              isStale: false,
+              provider: "moonshotai",
+              refreshStatus: "not-attempted",
+              sourceKind: "bundled",
+              sourceName: "bundled-kimi-2026-08-09",
+              updatedAtMs: null,
+            },
+          ],
+        },
         status: "ok",
         warnings: [],
       });
@@ -103,6 +150,10 @@ describe("Dashboard", () => {
 
     expect((await screen.findAllByText("$1.23")).length).toBe(2);
     expect(screen.getByText("2 replay copies")).toBeTruthy();
+    expect(screen.getByText("Total API cost*").getAttribute("title")).toBe(
+      "Estimated from recorded tokens and configured rates.",
+    );
+    expect(screen.getByText(/Claude Pro subscription detected/)).toBeTruthy();
     expect(screen.getAllByText("Test session").length).toBe(2);
     expect(screen.getByTestId("bucket-chart")).toBeTruthy();
     expect(screen.getByTestId("cumulative-chart")).toBeTruthy();
@@ -118,7 +169,7 @@ describe("Dashboard", () => {
     expect(screen.getByText("Watches files · Rechecks every 30s")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Rescan" }).getAttribute("title")).toBe("Rescan");
 
-    const pricingSummary = screen.getByText(/Pricing updated:/).closest("summary");
+    const pricingSummary = screen.getByText(/Pricing:/).closest("summary");
     expect(pricingSummary).not.toBeNull();
     fireEvent.click(pricingSummary as HTMLElement);
     expect(screen.getByText("Checked at startup and every 24 hours. Existing calls keep their recorded rates.")).toBeTruthy();
@@ -169,6 +220,28 @@ describe("Dashboard", () => {
     });
   });
 
+  test("filters reports and session choices by provider", async () => {
+    const { Dashboard } = await import("../../src/dashboard/Dashboard");
+    render(<Dashboard />);
+    await screen.findAllByText("$1.23");
+
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "anthropic" },
+    });
+
+    const sessionSelect = screen.getByLabelText("Session") as HTMLSelectElement;
+    expect([...sessionSelect.options].map((option) => option.text)).toEqual([
+      "All",
+      "Other session",
+    ]);
+    await waitFor(() => {
+      const latestSummaryRequest = requestedUrls
+        .filter((url) => url.startsWith("/api/summary?"))
+        .at(-1);
+      expect(latestSummaryRequest).toContain("provider=anthropic");
+    });
+  });
+
   test("shows individual calls when a session is selected", async () => {
     const { Dashboard } = await import("../../src/dashboard/Dashboard");
     render(<Dashboard />);
@@ -177,7 +250,7 @@ describe("Dashboard", () => {
     fireEvent.change(screen.getByLabelText("Session"), { target: { value: "session-1" } });
 
     expect((screen.getByLabelText("Bucket") as HTMLSelectElement).disabled).toBe(true);
-    await waitFor(() => expect(screen.getByText("Spend by call")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("API cost by call")).toBeTruthy());
     expect(screen.getByText("One bar per call · idle time removed")).toBeTruthy();
   });
 
