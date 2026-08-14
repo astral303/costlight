@@ -15,7 +15,7 @@ mise install
 mise run start
 ```
 
-Open <http://127.0.0.1:4637>. `mise run start` builds the frontend, imports current history, starts the watcher, and serves the production dashboard.
+Open <http://127.0.0.1:4637>. `mise run start` installs the locked dependencies, builds the frontend, imports current history, starts the watcher, and serves the production dashboard.
 Press `Q` in the terminal to stop the dashboard cleanly. `Ctrl+C` remains supported.
 
 Windows users can run the equivalent launcher:
@@ -55,6 +55,7 @@ Official provider billing exports remain the authority for reconciliation.
 
 | Command | Result |
 |---|---|
+| `mise run install` | Install the exact dependencies recorded in `bun.lock` |
 | `mise run start` | Build and run the production dashboard |
 | `mise run dev` | Run the API watcher and Vite development server |
 | `mise run check` | Run strict TypeScript checking |

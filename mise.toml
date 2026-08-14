@@ -1,12 +1,17 @@
 [tools]
 bun = "1.3.14"
 
+[tasks.install]
+description = "Install the locked JavaScript dependencies"
+run = "bun install --frozen-lockfile"
+
 [tasks.dev]
 description = "Start the API server and Vite development server"
 run = "bun run dev"
 
 [tasks.start]
 description = "Build and start the production dashboard"
+depends = ["install"]
 run = "bun run start"
 
 [tasks.check]
