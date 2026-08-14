@@ -35,6 +35,7 @@ export const initialDashboardFilters: DashboardViewFilters = {
 
 interface HealthResponse {
   dataVersion: number;
+  detectedProviders: readonly string[];
   ingestion: {
     isScanning: boolean;
     lastSuccessfulScanMs: number | null;
@@ -152,7 +153,6 @@ export function useDashboardData(filters: DashboardViewFilters) {
     isConnected: liveConnection.isConnected,
     queryString,
     refreshPricing: () => runAction("/api/pricing/refresh"),
-    repriceHistory: () => runAction("/api/pricing/reprice"),
     rescan: () => runAction("/api/rescan"),
   };
 }
@@ -160,7 +160,6 @@ export function useDashboardData(filters: DashboardViewFilters) {
 function createQueryString(filters: DashboardViewFilters): string {
   const parameters = new URLSearchParams({
     bucket: filters.bucket,
-    sort: filters.sessionSort,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
   const now = Date.now();

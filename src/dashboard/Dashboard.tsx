@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { ConnectionStatus } from "../live-sync/ConnectionStatus";
-import { MeteringDisclosure } from "../metered-usage/MeteringDisclosure";
-import { PricingWarning } from "../pricing/PricingWarning";
+import { ProviderStatusList } from "../provider-status/ProviderStatus";
 import type {
   AgentRow,
   FilterOption,
@@ -27,6 +26,7 @@ export function Dashboard() {
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const dashboard = useDashboardData(filters);
   const summary = dashboard.summary;
+  const sortedSessions = sortSessions(dashboard.sessions, filters.sessionSort);
 
   function updateFilter<Key extends keyof DashboardViewFilters>(
     key: Key,
@@ -60,19 +60,21 @@ export function Dashboard() {
     }));
   }
 
-  function requestReprice(): void {
-    const shouldReprice = window.confirm(
-      "Recalculate every historical call with the latest active rates? This changes stored historical totals.",
-    );
-    if (shouldReprice) {
-      void dashboard.repriceHistory();
-    }
-  }
-
   return (
     <main className="dashboard-shell">
       <header className="dashboard-header">
-        <h1>Costlight</h1>
+        <div className="dashboard-header__primary">
+          <h1>Costlight</h1>
+          {dashboard.health !== null && (
+            <ProviderStatusList
+              claudeAccount={dashboard.health.metering.claude}
+              detectedProviders={dashboard.health.detectedProviders}
+              isWorking={dashboard.isActionRunning}
+              onRefreshPricing={() => void dashboard.refreshPricing()}
+              pricing={dashboard.health.pricing.providers}
+            />
+          )}
+        </div>
         <div className="dashboard-header__actions">
           <ConnectionStatus
             isConnected={dashboard.isConnected}
@@ -108,9 +110,6 @@ export function Dashboard() {
         onWorkspaceChange={updateWorkspace}
         options={dashboard.options}
       />
-      {dashboard.health !== null && (
-        <MeteringDisclosure status={dashboard.health.metering.claude} />
-      )}
 
       <section className="metric-grid" aria-label="Cost summary">
         <Metric
@@ -123,14 +122,6 @@ export function Dashboard() {
         <Metric label="Cache hit ratio" value={formatPercentage(summary?.cacheHitRatio ?? 0)} />
         <Metric label="Calls" value={(summary?.callCount ?? 0).toLocaleString()} detail={`${summary?.replayExcludedCount ?? 0} replay copies`} />
       </section>
-
-      <PricingWarning
-        isWorking={dashboard.isActionRunning}
-        onRefresh={() => void dashboard.refreshPricing()}
-        onReprice={requestReprice}
-        providers={dashboard.health?.pricing.providers ?? []}
-        unpricedCallCount={summary?.unpricedCallCount ?? 0}
-      />
 
       <section className="chart-grid">
         <article className="dashboard-panel chart-panel">
@@ -161,7 +152,24 @@ export function Dashboard() {
       </section>
 
       <section className="dashboard-panel table-panel">
-        <PanelHeading title="Sessions" />
+        <div className="session-panel-heading">
+          <PanelHeading title="Sessions" />
+          <div className="session-panel-heading__sort">
+            <FilterSelect
+              label="Session order"
+              value={filters.sessionSort}
+              onChange={(value) => updateFilter(
+                "sessionSort",
+                value as DashboardViewFilters["sessionSort"],
+              )}
+              options={[
+                { label: "Highest cost", value: "cost" },
+                { label: "Recent activity", value: "recent" },
+                { label: "Newest start", value: "start" },
+              ]}
+            />
+          </div>
+        </div>
         <div className="table-scroll">
           <table>
             <thead>
@@ -175,7 +183,7 @@ export function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {dashboard.sessions.map((session) => (
+              {sortedSessions.map((session) => (
                 <SessionTableRows
                   dataVersion={dashboard.dataVersion}
                   expanded={expandedSessionId === session.sessionId}
@@ -187,7 +195,7 @@ export function Dashboard() {
                   session={session}
                 />
               ))}
-              {!dashboard.isLoading && dashboard.sessions.length === 0 && (
+              {!dashboard.isLoading && sortedSessions.length === 0 && (
                 <tr><td colSpan={6} className="empty-table">No sessions match these filters.</td></tr>
               )}
             </tbody>
@@ -297,11 +305,6 @@ function FilterBar({
             { label: "Week", value: "week" },
           ]}
       />
-      <FilterSelect label="Session order" value={filters.sessionSort} onChange={(value) => onChange("sessionSort", value as DashboardViewFilters["sessionSort"])} options={[
-        { label: "Highest cost", value: "cost" },
-        { label: "Recent activity", value: "recent" },
-        { label: "Newest start", value: "start" },
-      ]} />
     </section>
   );
 }
@@ -494,4 +497,18 @@ function formatCompactNumber(value: number): string {
 
 function formatDateTime(timestampMs: number): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(timestampMs);
+}
+
+function sortSessions(
+  sessions: readonly SessionRow[],
+  order: DashboardViewFilters["sessionSort"],
+): readonly SessionRow[] {
+  return sessions.toSorted((left, right) => {
+    const primaryDifference = order === "recent"
+      ? right.lastCallAtMs - left.lastCallAtMs
+      : order === "start"
+        ? right.createdAtMs - left.createdAtMs
+        : right.totalCostNano - left.totalCostNano;
+    return primaryDifference || left.sessionId.localeCompare(right.sessionId);
+  });
 }

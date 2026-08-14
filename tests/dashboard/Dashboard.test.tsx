@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 mock.module("../../src/dashboard/CostChart", () => ({
   CostChart: ({ kind }: { kind: string }) => <div data-testid={`${kind}-chart`} />,
@@ -27,6 +27,7 @@ class FakeEventSource {
 }
 
 const requestedUrls: string[] = [];
+const statusTimestampMs = new Date(new Date().getFullYear(), 7, 14, 16, 38).getTime();
 
 beforeEach(() => {
   requestedUrls.length = 0;
@@ -62,7 +63,27 @@ beforeEach(() => {
       return Response.json({ agents: [] });
     }
     if (url.startsWith("/api/sessions")) {
-      return Response.json({ sessions: [createSession()] });
+      return Response.json({
+        sessions: [
+          createSession(),
+          {
+            ...createSession(),
+            createdAtMs: 0,
+            lastCallAtMs: 1,
+            sessionId: "session-high",
+            title: "Highest-cost session",
+            totalCostNano: 2_000_000_000,
+          },
+          {
+            ...createSession(),
+            createdAtMs: 3,
+            lastCallAtMs: 3,
+            sessionId: "session-newest",
+            title: "Newest session",
+            totalCostNano: 100_000_000,
+          },
+        ],
+      });
     }
     if (url.startsWith("/api/models")) {
       return Response.json({ models: [] });
@@ -100,13 +121,14 @@ beforeEach(() => {
     if (url === "/api/health") {
       return Response.json({
         dataVersion: 1,
+        detectedProviders: ["anthropic", "moonshotai"],
         ingestion: { isScanning: false, lastSuccessfulScanMs: 1, watcherStatus: "running" },
         metering: {
           claude: {
-            detectedAtMs: 1,
+            detectedAtMs: statusTimestampMs,
             error: null,
-            lastAttemptAtMs: 1,
-            lastSuccessAtMs: 1,
+            lastAttemptAtMs: statusTimestampMs,
+            lastSuccessAtMs: statusTimestampMs,
             policy: "pro-fable",
             subscriptionType: "pro",
           },
@@ -118,20 +140,20 @@ beforeEach(() => {
               hasOverrides: false,
               isStale: false,
               provider: "anthropic",
-              refreshStatus: "not-attempted",
-              sourceKind: "bundled",
-              sourceName: "bundled-claude-2026-08-09",
-              updatedAtMs: null,
+              refreshStatus: "succeeded",
+              sourceKind: "remote",
+              sourceName: "anthropic",
+              updatedAtMs: statusTimestampMs,
             },
             {
               error: null,
               hasOverrides: false,
               isStale: false,
               provider: "moonshotai",
-              refreshStatus: "not-attempted",
-              sourceKind: "bundled",
-              sourceName: "bundled-kimi-2026-08-09",
-              updatedAtMs: null,
+              refreshStatus: "succeeded",
+              sourceKind: "remote",
+              sourceName: "litellm",
+              updatedAtMs: statusTimestampMs,
             },
           ],
         },
@@ -155,13 +177,13 @@ describe("Dashboard", () => {
     expect(screen.getByText("Total API cost*").getAttribute("title")).toBe(
       "Estimated from recorded tokens and configured rates.",
     );
-    expect(screen.getByText(/Claude Pro subscription detected/)).toBeTruthy();
+    expect(screen.getByText("Claude Pro")).toBeTruthy();
     expect(screen.getAllByText("Test session").length).toBe(2);
     expect(screen.getByTestId("bucket-chart")).toBeTruthy();
     expect(screen.getByTestId("cumulative-chart")).toBeTruthy();
   });
 
-  test("keeps refresh details explicit and secondary actions disclosed", async () => {
+  test("keeps provider and scan status compact in the header", async () => {
     const { Dashboard } = await import("../../src/dashboard/Dashboard");
     render(<Dashboard />);
     await screen.findAllByText("$1.23");
@@ -170,14 +192,39 @@ describe("Dashboard", () => {
     expect(screen.queryByText(/Canonical API spend/)).toBeNull();
     expect(screen.getByText("Watches files · Rechecks every 30s")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Rescan" }).getAttribute("title")).toBe("Rescan");
+    expect(screen.queryByText(/Claude Pro subscription detected/)).toBeNull();
+    expect(screen.getByText("Pricing: Aug 14 (Claude Official)")).toBeTruthy();
+    expect(screen.getByLabelText(/Metered API usage: Fable only/).getAttribute("title"))
+      .toContain("Account checked");
+    expect(screen.getByText("Pricing: Aug 14 (Kimi LiteLLM)")).toBeTruthy();
 
-    const pricingSummary = screen.getByText(/Pricing:/).closest("summary");
-    expect(pricingSummary).not.toBeNull();
-    fireEvent.click(pricingSummary as HTMLElement);
-    expect(screen.getByText("Checked at startup and every 24 hours. Existing calls keep their recorded rates.")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Update pricing" }));
+    fireEvent.click(screen.getByText("Claude Pro").closest("summary") as HTMLElement);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh Claude pricing" }));
     await waitFor(() => expect(requestedUrls).toContain("/api/pricing/refresh"));
+  });
+
+  test("keeps session ordering beside the table it controls", async () => {
+    const { Dashboard } = await import("../../src/dashboard/Dashboard");
+    render(<Dashboard />);
+    await screen.findAllByText("$1.23");
+
+    const filterBar = screen.getByRole("region", { name: "Dashboard filters" });
+    expect(within(filterBar).queryByLabelText("Session order")).toBeNull();
+    const sessionsPanel = screen.getByRole("heading", { name: "Sessions" }).closest("section");
+    expect(sessionsPanel).not.toBeNull();
+    const sessionOrder = within(sessionsPanel as HTMLElement).getByLabelText("Session order");
+    const requestCount = requestedUrls.length;
+    const sessionTitles = () => [...(sessionsPanel as HTMLElement).querySelectorAll(
+      "tbody > tr > td:first-child strong",
+    )].map((title) => title.textContent);
+
+    expect(sessionTitles()).toEqual(["Highest-cost session", "Test session", "Newest session"]);
+
+    fireEvent.change(sessionOrder, { target: { value: "start" } });
+
+    expect(sessionTitles()).toEqual(["Newest session", "Test session", "Highest-cost session"]);
+    expect(requestedUrls).toHaveLength(requestCount);
+    expect(requestedUrls.every((url) => !url.includes("sort="))).toBe(true);
   });
 
   test("applies workspace filters to every report request", async () => {

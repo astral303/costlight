@@ -11,6 +11,13 @@
   gap: 24px;
 }
 
+.dashboard-header__primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 34px;
+}
+
 .dashboard-header h1 {
   margin: 0;
   color: #f0f6fc;
@@ -76,7 +83,7 @@
 
 .filter-bar {
   display: grid;
-  grid-template-columns: repeat(9, minmax(120px, 1fr));
+  grid-template-columns: repeat(8, minmax(120px, 1fr));
   gap: 8px;
   margin: 20px 0 12px;
   padding: 10px;
@@ -195,6 +202,18 @@
 .table-panel {
   margin-top: 12px;
   padding: 16px 18px 6px;
+}
+
+.session-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.session-panel-heading__sort {
+  width: 170px;
+  margin-top: -6px;
 }
 
 .table-scroll {
@@ -340,6 +359,7 @@ td small {
 @media (max-width: 720px) {
   .dashboard-shell { width: min(100% - 22px, 1500px); padding-top: 18px; }
   .dashboard-header { align-items: stretch; flex-direction: column; gap: 10px; }
+  .dashboard-header__primary { align-items: flex-start; flex-direction: column; gap: 14px; }
   .dashboard-header__actions { justify-content: space-between; }
   .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

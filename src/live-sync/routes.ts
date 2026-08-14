@@ -49,6 +49,14 @@ export function handleLiveRoute(
         ) AS unpriced_call_count
     `)
     .get() ?? { call_count: 0, session_count: 0, unpriced_call_count: 0 };
+  const detectedProviders = dependencies.database
+    .query<{ provider: string }, []>(`
+      SELECT DISTINCT provider
+      FROM sessions
+      ORDER BY provider
+    `)
+    .all()
+    .map(({ provider }) => provider);
   const ingestion = dependencies.monitor.getStatus();
   const pricingRefresh = dependencies.pricingCatalog.getLastRefreshResults();
   const claudeMetering = dependencies.meteredUsage.getClaudeStatus();
@@ -68,6 +76,7 @@ export function handleLiveRoute(
   return Response.json({
     callCount: counts.call_count,
     dataVersion: dependencies.hub.getDataVersion(),
+    detectedProviders,
     ingestion,
     metering: {
       claude: claudeMetering,
