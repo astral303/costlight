@@ -58,6 +58,7 @@ Official provider billing exports remain the authority for reconciliation.
 | `mise run install` | Install the exact dependencies recorded in `bun.lock` |
 | `mise run start` | Build and run the production dashboard |
 | `mise run dev` | Run the API watcher and Vite development server |
+| `bun run check:packages` | Reject floating dependency versions in `package.json` |
 | `mise run check` | Run strict TypeScript checking |
 | `mise run test` | Run unit, integration, and component tests |
 | `mise run build` | Build the browser application into `dist/` |
