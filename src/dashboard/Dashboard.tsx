@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { APPLICATION_VERSION } from "../app-version/browser-version";
 import { ConnectionStatus } from "../live-sync/ConnectionStatus";
 import { ProviderStatusList } from "../provider-status/ProviderStatus";
 import type {
@@ -239,6 +240,7 @@ export function Dashboard() {
       </section>
 
       <footer className="dashboard-footer">
+        <span>Costlight v{APPLICATION_VERSION}</span>
         <span>{formatCompactNumber(summary?.inputTokens ?? 0)} input tokens</span>
         <span>{formatCompactNumber(summary?.outputTokens ?? 0)} output tokens</span>
         <span>{formatCompactNumber(summary?.cacheReadTokens ?? 0)} cache-read tokens</span>

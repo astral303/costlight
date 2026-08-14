@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { APPLICATION_VERSION } from "../app-version/server-version";
 import type { PricingCatalog } from "../pricing/catalog";
 import type { MeteredUsageService } from "../metered-usage/service";
 import type { SessionMonitor } from "../session-import/monitor";
@@ -88,7 +89,7 @@ export function handleLiveRoute(
     sessionCount: counts.session_count,
     startedAtMs: dependencies.startedAtMs,
     status: warnings.length === 0 ? "ok" : "warning",
-    version: "0.1.0",
+    version: APPLICATION_VERSION,
     warnings,
   });
 }

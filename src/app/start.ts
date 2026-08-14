@@ -1,3 +1,7 @@
+import { resolveApplicationVersion } from "../app-version/resolve-version";
+
+process.env.COSTLIGHT_VERSION = resolveApplicationVersion();
+
 const buildProcess = Bun.spawn(["bun", "run", "build"], {
   stderr: "inherit",
   stdout: "inherit",

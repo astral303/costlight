@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { APPLICATION_VERSION } from "../../src/app-version/browser-version";
 
 mock.module("../../src/dashboard/CostChart", () => ({
   CostChart: ({ kind }: { kind: string }) => <div data-testid={`${kind}-chart`} />,
@@ -181,6 +182,7 @@ describe("Dashboard", () => {
     expect(screen.getAllByText("Test session").length).toBe(2);
     expect(screen.getByTestId("bucket-chart")).toBeTruthy();
     expect(screen.getByTestId("cumulative-chart")).toBeTruthy();
+    expect(screen.getByText(`Costlight v${APPLICATION_VERSION}`)).toBeTruthy();
   });
 
   test("keeps provider and scan status compact in the header", async () => {
