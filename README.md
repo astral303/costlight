@@ -2,6 +2,8 @@
 
 > Local, replay-safe metered API cost tracking for Kimi Code and Claude Code.
 
+**Zero Telemetry. 100% Local.** Your usage data never leaves the machine. Costlight's only outbound requests fetch public model-pricing catalogs.
+
 Costlight reads local Kimi Code and Claude Code usage records without modifying them, stores only derived usage metadata in SQLite, and serves the dashboard on loopback by default. It reconstructs metered API cost from recorded tokens and configured rates; it does not report invoice totals.
 
 ## Start Costlight
@@ -183,6 +185,8 @@ Create `pricing-overrides.json` in the application data directory. Values are US
 For providers with TTL-specific cache pricing, overrides may also set `cacheCreation5mInputTokenCost` and `cacheCreation1hInputTokenCost`. Each omitted TTL-specific field falls back to `cacheCreationInputTokenCost`, which in turn falls back to the normal input rate. Override provenance remains visible in the model table.
 
 ## Privacy and security
+
+Costlight sends no telemetry. Session discovery, parsing, cost reconstruction, storage, and dashboard traffic stay on the local machine. The only outbound network requests fetch the public pricing catalogs described above; no usage data, account metadata, or calculated totals are included.
 
 The database stores token counts, model identity, timestamps, canonical request identifiers, rate provenance, session/agent attribution, and the minimal Claude subscription snapshot needed for metering. It does not store:
 
