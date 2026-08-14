@@ -1,7 +1,7 @@
 {
   "name": "costlight",
   "version": "0.1.0",
-  "description": "Local, replay-safe API spend tracking for Kimi Code.",
+  "description": "Local, replay-safe metered API cost tracking for Kimi Code and Claude Code.",
   "private": true,
   "type": "module",
   "scripts": {

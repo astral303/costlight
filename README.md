@@ -1,8 +1,8 @@
 # Costlight
 
-> Local, replay-safe API spend tracking for Kimi Code.
+> Local, replay-safe metered API cost tracking for Kimi Code and Claude Code.
 
-Costlight reads local Kimi Code usage records without modifying them, stores only derived usage metadata in SQLite, and serves the dashboard on loopback by default.
+Costlight reads local Kimi Code and Claude Code usage records without modifying them, stores only derived usage metadata in SQLite, and serves the dashboard on loopback by default. It reconstructs metered API cost from recorded tokens and configured rates; it does not report invoice totals.
 
 ## Start Costlight
 
@@ -30,11 +30,24 @@ mise run dev
 
 ## What the report means
 
-- **New spend** includes one canonical row per provider request.
-- **Inherited/replayed usage** remains inspectable but is excluded from cost.
-- **Main and subagent spend** follows the canonical occurrence's agent directory and the parent graph in `state.json`.
-- **Cache costs** remain separate for uncached input, cache creation, cache reads, and output.
+- **Total API cost\*** includes one canonical, metered row per provider request. The asterisk means “Estimated from recorded tokens and configured rates.”
+- **Inherited/replayed usage** remains inspectable but is never counted twice.
+- **Main and subagent API cost** follows each provider's session and agent metadata.
+- **Cache costs** remain separate for uncached input, 5-minute and 1-hour cache writes, cache reads, and output.
 - **Unpriced calls** produce warnings and a blank cost, never a misleading `$0.00`.
+
+Kimi calls are eligible for metered accounting. Claude eligibility follows the subscription type reported by `claude auth status`:
+
+| Claude account | Calls included |
+|---|---|
+| Pro | Explicit Fable models only |
+| Enterprise | All Claude calls with a known rate |
+| Any other subscription | None |
+| Status unavailable with no prior successful check | None |
+
+The first successful check is documented as a current-state backfill. Later subscription changes affect only calls at or after the observed change; earlier calls retain their saved account snapshot and metering decision. A transient failure retains the last confirmed policy and appears as a warning.
+
+Official provider billing exports remain the authority for reconciliation.
 
 ## Commands
 
@@ -49,7 +62,7 @@ mise run dev
 | `bun run import` | Import/reconcile history once and print aggregate diagnostics |
 | `mise run analyze-cache` | Infer the Kimi cache inactivity window from all local wire logs |
 | `bun run reprice` | Explicitly refresh rates and recalculate all historical calls |
-| `bun run audit` | Compare local totals with ccusage through Bun's package runner |
+| `bun run audit` | Compare Kimi totals with ccusage through Bun's package runner |
 
 All JavaScript and TypeScript executables run through the mise-pinned Bun toolchain. `bun.lock` and `mise.lock` pin the resolved dependencies and Bun artifacts.
 
@@ -64,6 +77,22 @@ The importer discovers current Kimi files under:
 ```
 
 It also checks `~/.kimi`, supports the legacy session-level `wire.jsonl` layout, and honors `KIMI_CODE_HOME` or `--kimi-root`.
+
+Claude Code transcripts are discovered under:
+
+```text
+~/.claude/projects/<encoded-project>/
+├── <session-id>.jsonl
+└── <session-id>/subagents/agent-<id>.jsonl
+```
+
+Costlight honors `CLAUDE_CONFIG_DIR` or `--claude-root`. Missing provider directories are treated as empty, so either backend can be used independently.
+
+Claude transcripts may repeat an assistant message while its usage fields are still being finalized or after a session is forked. Costlight attributes the call to its original session, uses the final compatible usage snapshot once, and keeps distinct 5-minute and 1-hour cache-write counts. Synthetic local messages and records with no billable tokens are ignored.
+
+Claude transcript files do not identify whether a call used the subscription allowance or extra usage. The account policy above is therefore an explicit accounting rule: Pro includes only Fable, Enterprise includes all priced Claude calls, and unknown states are never inferred as metered.
+
+Costlight runs `claude auth status` as an argument-array command with a bounded timeout. It stores only the normalized subscription type, effective detection interval, provenance, and latest check status. It does not read Claude's credential file or retain the command's raw response.
 
 ## Cache-window analysis
 
@@ -104,6 +133,7 @@ mise run start -- --privacy --port 4700
 | Option | Behavior |
 |---|---|
 | `--data-dir <path>` | Override the SQLite and pricing-cache directory |
+| `--claude-root <path>` | Use one explicit Claude configuration directory |
 | `--kimi-root <path>` | Use one explicit Kimi home directory |
 | `--host <host>` | Override the default `127.0.0.1` binding |
 | `--port <port>` | Override port `4637` |
@@ -120,12 +150,15 @@ Non-loopback binding is refused unless the token contains at least 16 characters
 Resolution order is:
 
 1. Exact raw-model user override.
-2. Direct Moonshot provider rate from the last-good models.dev catalog.
-3. Direct Moonshot entry from LiteLLM.
-4. Bundled Kimi fallback rates.
-5. Visible unpriced warning.
+2. Official Anthropic model pricing for Claude.
+3. Direct Moonshot provider rate from the last-good models.dev catalog.
+4. Direct Moonshot entry from LiteLLM.
+5. Bundled provider rates, including published Claude Fable 5, Opus 5, and Haiku 4.5 rates.
+6. Visible unpriced warning.
 
-Remote catalogs refresh when stale and then at most every 24 hours. A failed refresh retains normalized rates and the last-good raw response. When a catalog omits cache-creation pricing, cache creation uses normal uncached-input pricing and the rate is labeled inferred.
+Remote catalogs refresh when stale and then at most every 24 hours. Anthropic's Markdown response is validated against the exact model-pricing table and retained by content hash because the server does not advertise an ETag or Last-Modified validator. A failed refresh retains normalized rates and the last-good raw response. Pricing status is shown separately for Claude and Kimi, so one provider's timestamp never implies that the other was updated. When a catalog omits cache-creation pricing, cache creation uses normal uncached-input pricing and the rate is labeled inferred.
+
+Claude's bundled rates preserve the published 5-minute and 1-hour cache-write prices independently. See [Claude model pricing](https://platform.claude.com/docs/en/about-claude/pricing).
 
 Catalog changes apply to new calls. Existing calls retain their stored rate until the user selects **Reprice history** or runs `bun run reprice`.
 
@@ -147,18 +180,18 @@ Create `pricing-overrides.json` in the application data directory. Values are US
 }
 ```
 
-Omitting either cache field falls back to the override's normal input rate. Override provenance remains visible in the model table.
+For providers with TTL-specific cache pricing, overrides may also set `cacheCreation5mInputTokenCost` and `cacheCreation1hInputTokenCost`. Each omitted TTL-specific field falls back to `cacheCreationInputTokenCost`, which in turn falls back to the normal input rate. Override provenance remains visible in the model table.
 
 ## Privacy and security
 
-The database stores token counts, model identity, timestamps, canonical request identifiers, rate provenance, and session/agent attribution. It does not store:
+The database stores token counts, model identity, timestamps, canonical request identifiers, rate provenance, session/agent attribution, and the minimal Claude subscription snapshot needed for metering. It does not store:
 
 - Prompts or model output.
 - Tool arguments or tool output.
 - Raw wire lines.
-- API keys, `config.toml`, or provider credentials.
+- API keys, OAuth tokens, email addresses, organization details, `config.toml`, or provider credentials.
 
-The server sends a restrictive Content Security Policy, refuses remote binding without authentication, and streams only invalidation versions over SSE. The browser refetches aggregate JSON; raw Kimi records are never sent.
+The server sends a restrictive Content Security Policy, refuses remote binding without authentication, and streams only invalidation versions over SSE. The browser refetches aggregate JSON; raw provider records are never sent.
 
 ## Safe recovery and rebuild
 
@@ -169,9 +202,9 @@ $rebuildDirectory = Join-Path $env:LOCALAPPDATA 'Costlight-Rebuild'
 mise run start -- --data-dir $rebuildDirectory
 ```
 
-Verify the totals in the rebuilt dashboard before archiving the old application-data directory. Kimi source files do not need repair or modification.
+Verify the totals in the rebuilt dashboard before archiving the old application-data directory. Provider source files do not need repair or modification.
 
-When pricing is offline, the app uses the last-good catalog or bundled Kimi rates. The health endpoint and UI show the failure until a refresh succeeds.
+When pricing is offline, the app uses the last-good catalog or bundled provider rates. The health endpoint and UI show the failure until a refresh succeeds.
 
 ## API
 
@@ -192,7 +225,7 @@ Explicit actions:
 - `POST /api/pricing/refresh`
 - `POST /api/pricing/reprice`
 
-Summary, timeseries, session, and model endpoints accept the same `from`, `to`, `workspace`, `session`, `model`, `agentType`, `agentId`, `bucket`, and `timeZone` filters.
+Summary, timeseries, session, and model endpoints accept the same `from`, `to`, `provider`, `workspace`, `session`, `model`, `agentType`, `agentId`, `bucket`, and `timeZone` filters.
 
 ## Feature-grouped layout
 
@@ -201,9 +234,12 @@ Implementation files are grouped by product concept, not technical type:
 ```text
 src/
 ├── app/                 # runtime composition and project lifecycle
-├── session-import/      # discovery through persistence and rescan API
+├── session-import/      # provider-neutral checkpoints, monitoring and orchestration
+│   ├── kimi/            # Kimi discovery, state and wire parsing
+│   └── claude/          # Claude discovery and transcript parsing
 ├── call-accounting/     # occurrence identity, canonical ledger, audit
 ├── pricing/             # storage, catalogs, routes, warning UI and styles
+├── metered-usage/       # Claude account policy, persistence and disclosure UI
 ├── dashboard/           # queries, contracts, routes, React UI and styles
 └── live-sync/           # SSE, health, browser connection UI and styles
 ```
@@ -216,7 +252,7 @@ src/
 mise run verify
 ```
 
-The suite covers append checkpoints, partial JSON, concurrent appends, rewrites, source deletion, new subagents, fork deduplication, canonical reassignment, historical rate preservation, offline pricing, timezone/DST buckets, report reconciliation, filter propagation, and SSE-triggered refresh.
+The suite covers Kimi and Claude parsing, account-policy boundaries, append checkpoints, zero-byte unchanged reconciliation, partial JSON, concurrent appends, rewrites, source deletion, new subagents, progressive usage snapshots, fork deduplication, canonical reassignment, historical rate preservation, official and offline pricing, timezone/DST buckets, metered-only report reconciliation, filter propagation, and SSE-triggered refresh.
 
 The optional ccusage audit never runs during normal ingestion:
 
