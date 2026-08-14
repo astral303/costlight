@@ -148,7 +148,7 @@
 .metric > strong {
   margin-top: 5px;
   color: #f0f6fc;
-  font-size: clamp(1.25rem, 2vw, 1.8rem);
+  font-size: clamp(1.12rem, 1.7vw, 1.65rem);
   letter-spacing: -0.035em;
 }
 
