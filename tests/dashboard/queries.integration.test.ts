@@ -114,11 +114,12 @@ describe("dashboard queries", () => {
         sourcePath: "wire-a",
       }, createUsage("session-request", 1_000));
 
-      const options = queryFilterOptions(database, false);
+      const options = queryFilterOptions(database, false, 100);
 
       expect(options.sessions).toEqual([{
-        label: `$0.46 · ${"A".repeat(47)}… · wd_project_123`,
+        label: `0m · $0.46 · ${"A".repeat(47)}… · wd_project_123`,
         provider: "moonshotai",
+        recencyGroup: "Last 24 hours",
         value: "session-a",
         workspace: "wd_project_123",
       }]);
@@ -224,6 +225,71 @@ describe("dashboard queries", () => {
       expect(database.query<{ count: number }, []>(`
         SELECT COUNT(*) AS count FROM usage_occurrences
       `).get()?.count).toBe(2);
+    } finally {
+      database.close();
+    }
+  });
+
+  test("groups session filters by recency and orders each group by cost", () => {
+    const database = openDashboardDatabase(":memory:");
+    const minuteMs = 60 * 1_000;
+    const dayMs = 24 * 60 * minuteMs;
+    const nowMs = 40 * dayMs;
+    const sessionData = [
+      { ageMs: 15 * minuteMs, cost: 1, id: "recent-low" },
+      { ageMs: 7 * 60 * minuteMs, cost: 9, id: "recent-high" },
+      { ageMs: 2 * dayMs, cost: 2, id: "archive-two" },
+      { ageMs: 3 * dayMs, cost: 8, id: "archive-three" },
+      { ageMs: 4 * dayMs, cost: 3, id: "older-four" },
+      { ageMs: 10 * dayMs, cost: 7, id: "older-ten" },
+      { ageMs: 20 * dayMs, cost: 4, id: "older-twenty" },
+      { ageMs: 30 * dayMs, cost: 6, id: "older-thirty" },
+    ];
+    try {
+      const ledger = new CallLedger(database, callPricing(() => ({
+        basis: "test catalog",
+        cacheCreation1hNanoPerToken: 1,
+        cacheCreation5mNanoPerToken: 1,
+        cacheCreationNanoPerToken: 1,
+        cacheReadNanoPerToken: 1,
+        confidence: "exact",
+        inputNanoPerToken: 1,
+        outputNanoPerToken: 1,
+        rateId: null,
+        resolvedModelKey: "moonshotai/kimi-k3",
+      })));
+      for (const session of sessionData) {
+        const updatedAtMs = nowMs - session.ageMs;
+        insertSource(database, session.id, "main", "main", updatedAtMs, session.id, {
+          title: session.id,
+        });
+        const usage = createUsage(`${session.id}-request`, updatedAtMs);
+        ledger.recordUsage({
+          agentId: "main",
+          generation: 0,
+          sessionId: session.id,
+          sourcePath: session.id,
+        }, {
+          ...usage,
+          tokens: { ...usage.tokens, output: session.cost * 100 },
+        });
+      }
+
+      const sessions = queryFilterOptions(database, false, nowMs).sessions;
+
+      expect(sessions.map(({ recencyGroup, value }) => ({ recencyGroup, value }))).toEqual([
+        { recencyGroup: "Last 24 hours", value: "recent-high" },
+        { recencyGroup: "Last 24 hours", value: "recent-low" },
+        { recencyGroup: "1–3 days ago", value: "archive-three" },
+        { recencyGroup: "1–3 days ago", value: "archive-two" },
+        { recencyGroup: "4+ days ago", value: "older-ten" },
+        { recencyGroup: "4+ days ago", value: "older-thirty" },
+        { recencyGroup: "4+ days ago", value: "older-twenty" },
+        { recencyGroup: "4+ days ago", value: "older-four" },
+      ]);
+      expect(sessions.map((session) => session.label.split(" · ")[0])).toEqual([
+        "7h", "15m", "3d", "2d", "10d", "30d", "20d", "4d",
+      ]);
     } finally {
       database.close();
     }

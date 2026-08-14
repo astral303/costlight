@@ -6,6 +6,7 @@ import type {
   AgentRow,
   FilterOption,
   FilterOptionsResponse,
+  SessionFilterOption,
   SessionRow,
 } from "./contracts";
 import { formatUsdNano } from "./formatting";
@@ -269,7 +270,11 @@ function FilterBar({
       ]} />
       <FilterSelect label="Provider" value={filters.provider} onChange={onProviderChange} options={options.providers} includeAll />
       <FilterSelect label="Workspace" value={filters.workspace} onChange={onWorkspaceChange} options={options.workspaces} includeAll />
-      <FilterSelect label="Session" value={filters.sessionId} onChange={(value) => onChange("sessionId", value)} options={sessionOptions} includeAll />
+      <SessionFilterSelect
+        value={filters.sessionId}
+        onChange={(value) => onChange("sessionId", value)}
+        options={sessionOptions}
+      />
       <FilterSelect label="Model" value={filters.model} onChange={(value) => onChange("model", value)} options={options.models} includeAll />
       <FilterSelect label="Agent type" value={filters.agentType} onChange={(value) => onChange("agentType", value as DashboardViewFilters["agentType"])} options={[
         { label: "Main", value: "main" },
@@ -325,6 +330,45 @@ function FilterSelect({
       </select>
     </label>
   );
+}
+
+function SessionFilterSelect({
+  onChange,
+  options,
+  value,
+}: {
+  onChange: (value: string) => void;
+  options: readonly SessionFilterOption[];
+  value: string;
+}) {
+  const groupedOptions = groupSessionOptions(options);
+  return (
+    <label className="filter-field">
+      <span>Session</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">All</option>
+        {[...groupedOptions].map(([group, groupOptions]) => (
+          <optgroup key={group} label={group}>
+            {groupOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function groupSessionOptions(
+  options: readonly SessionFilterOption[],
+): ReadonlyMap<string, readonly SessionFilterOption[]> {
+  const groups = new Map<string, SessionFilterOption[]>();
+  for (const option of options) {
+    const group = groups.get(option.recencyGroup) ?? [];
+    group.push(option);
+    groups.set(option.recencyGroup, group);
+  }
+  return groups;
 }
 
 function Metric({ detail, label, labelTitle, value }: {

@@ -99,6 +99,7 @@ export interface FilterOption {
 
 export interface SessionFilterOption extends FilterOption {
   provider: string;
+  recencyGroup: string;
   workspace: string;
 }
 

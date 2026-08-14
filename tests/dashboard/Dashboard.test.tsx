@@ -79,12 +79,14 @@ beforeEach(() => {
           {
             label: "Test session",
             provider: "moonshotai",
+            recencyGroup: "Last 24 hours",
             value: "session-1",
             workspace: "workspace-1",
           },
           {
             label: "Other session",
             provider: "anthropic",
+            recencyGroup: "2+ days ago",
             value: "session-2",
             workspace: "workspace-2",
           },
@@ -220,6 +222,18 @@ describe("Dashboard", () => {
     });
   });
 
+  test("renders session recency groups in their supplied order", async () => {
+    const { Dashboard } = await import("../../src/dashboard/Dashboard");
+    render(<Dashboard />);
+    await screen.findAllByText("$1.23");
+
+    const sessionSelect = screen.getByLabelText("Session");
+    expect([...sessionSelect.querySelectorAll("optgroup")].map((group) => group.label)).toEqual([
+      "Last 24 hours",
+      "2+ days ago",
+    ]);
+  });
+
   test("filters reports and session choices by provider", async () => {
     const { Dashboard } = await import("../../src/dashboard/Dashboard");
     render(<Dashboard />);
@@ -233,6 +247,9 @@ describe("Dashboard", () => {
     expect([...sessionSelect.options].map((option) => option.text)).toEqual([
       "All",
       "Other session",
+    ]);
+    expect([...sessionSelect.querySelectorAll("optgroup")].map((group) => group.label)).toEqual([
+      "2+ days ago",
     ]);
     await waitFor(() => {
       const latestSummaryRequest = requestedUrls

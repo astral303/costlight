@@ -15,6 +15,10 @@ import type {
 import { formatUsdNano } from "./formatting";
 
 const SESSION_TITLE_MAX_CHARACTERS = 48;
+const MILLISECONDS_PER_MINUTE = 60 * 1_000;
+const MILLISECONDS_PER_HOUR = 60 * MILLISECONDS_PER_MINUTE;
+const MILLISECONDS_PER_DAY = 24 * MILLISECONDS_PER_HOUR;
+const NEWER_ARCHIVE_TARGET_SHARE = 0.3;
 
 type SqlParameter = bigint | boolean | number | string | null | Uint8Array;
 
@@ -327,6 +331,7 @@ export function queryModels(database: Database, filters: DashboardFilters): read
 export function queryFilterOptions(
   database: Database,
   privacyMode: boolean,
+  nowMs = Date.now(),
 ): FilterOptionsResponse {
   const workspaces = queryRows<{ workspace_key: string }>(database, `
     SELECT DISTINCT session.workspace_key
@@ -343,6 +348,7 @@ export function queryFilterOptions(
     session_id: string;
     title: string | null;
     total_cost_nano: number;
+    updated_at_ms: number;
     workspace_key: string;
   }>(database, `
     SELECT
@@ -350,20 +356,37 @@ export function queryFilterOptions(
       session.provider,
       session.workspace_key,
       session.title,
+      session.updated_at_ms,
       COALESCE(SUM(call.total_cost_nano), 0) AS total_cost_nano
     FROM sessions AS session
     LEFT JOIN api_calls AS call
       ON call.session_id = session.session_id AND call.is_metered = 1
     GROUP BY session.session_id
     HAVING COALESCE(SUM(call.total_cost_nano), 0) > 0
-    ORDER BY session.updated_at_ms DESC
-  `).map(({ provider, session_id, title, total_cost_nano, workspace_key }, index) => ({
+  `);
+  const archiveSplitDay = chooseArchiveSplitDay(sessions, nowMs);
+  const orderedSessions = sessions.toSorted((left, right) => (
+    compareSessionRecencyGroups(left.updated_at_ms, right.updated_at_ms, archiveSplitDay, nowMs)
+    || right.total_cost_nano - left.total_cost_nano
+    || right.updated_at_ms - left.updated_at_ms
+    || left.session_id.localeCompare(right.session_id)
+  ));
+  const sessionOptions = orderedSessions.map(({
+    provider,
+    session_id,
+    title,
+    total_cost_nano,
+    updated_at_ms,
+    workspace_key,
+  }, index) => ({
     label: formatSessionOptionLabel({
+      age: formatSessionAge(updated_at_ms, nowMs),
       projectId: privacyMode ? "Hidden project" : workspace_key,
       spendNano: total_cost_nano,
       title: privacyMode ? `Session ${index + 1}` : title ?? session_id,
     }),
     provider,
+    recencyGroup: sessionRecencyGroup(updated_at_ms, archiveSplitDay, nowMs),
     value: session_id,
     workspace: workspace_key,
   }));
@@ -387,19 +410,95 @@ export function queryFilterOptions(
     WHERE call.is_metered = 1
     ORDER BY call.provider
   `).map(({ provider }) => ({ label: providerLabel(provider), value: provider }));
-  return { agents, models, providers, sessions, workspaces };
+  return { agents, models, providers, sessions: sessionOptions, workspaces };
 }
 
 function formatSessionOptionLabel({
+  age,
   projectId,
   spendNano,
   title,
 }: {
+  age: string;
   projectId: string;
   spendNano: number;
   title: string;
 }): string {
-  return `${formatUsdNano(spendNano)} · ${truncateSessionTitle(title)} · ${projectId}`;
+  return `${age} · ${formatUsdNano(spendNano)} · ${truncateSessionTitle(title)} · ${projectId}`;
+}
+
+function chooseArchiveSplitDay(
+  sessions: readonly { updated_at_ms: number }[],
+  nowMs: number,
+): number {
+  const archiveAges = sessions
+    .map((session) => sessionAgeDays(session.updated_at_ms, nowMs))
+    .filter((ageDays) => ageDays >= 1)
+    .toSorted((left, right) => left - right);
+  const distinctAges = [...new Set(archiveAges)];
+  const firstAge = distinctAges[0];
+  if (firstAge === undefined) {
+    return 1;
+  }
+  if (distinctAges.length === 1) {
+    return firstAge;
+  }
+
+  let bestSplitDay = firstAge;
+  let smallestDifference = Number.POSITIVE_INFINITY;
+  for (const candidate of distinctAges.slice(0, -1)) {
+    const newerCount = archiveAges.findLastIndex((ageDays) => ageDays <= candidate) + 1;
+    const difference = Math.abs(newerCount / archiveAges.length - NEWER_ARCHIVE_TARGET_SHARE);
+    if (difference < smallestDifference) {
+      bestSplitDay = candidate;
+      smallestDifference = difference;
+    }
+  }
+  return bestSplitDay;
+}
+
+function compareSessionRecencyGroups(
+  leftUpdatedAtMs: number,
+  rightUpdatedAtMs: number,
+  archiveSplitDay: number,
+  nowMs: number,
+): number {
+  return sessionGroupRank(leftUpdatedAtMs, archiveSplitDay, nowMs)
+    - sessionGroupRank(rightUpdatedAtMs, archiveSplitDay, nowMs);
+}
+
+function sessionGroupRank(updatedAtMs: number, archiveSplitDay: number, nowMs: number): number {
+  const ageDays = sessionAgeDays(updatedAtMs, nowMs);
+  if (ageDays < 1) {
+    return 0;
+  }
+  return ageDays <= archiveSplitDay ? 1 : 2;
+}
+
+function sessionRecencyGroup(updatedAtMs: number, archiveSplitDay: number, nowMs: number): string {
+  const rank = sessionGroupRank(updatedAtMs, archiveSplitDay, nowMs);
+  if (rank === 0) {
+    return "Last 24 hours";
+  }
+  if (rank === 1) {
+    return archiveSplitDay === 1 ? "1 day ago" : `1–${archiveSplitDay} days ago`;
+  }
+  return `${archiveSplitDay + 1}+ days ago`;
+}
+
+function formatSessionAge(updatedAtMs: number, nowMs: number): string {
+  const ageMs = Math.max(0, nowMs - updatedAtMs);
+  if (ageMs < MILLISECONDS_PER_HOUR) {
+    return `${Math.floor(ageMs / MILLISECONDS_PER_MINUTE)}m`;
+  }
+  if (ageMs < MILLISECONDS_PER_DAY) {
+    return `${Math.floor(ageMs / MILLISECONDS_PER_HOUR)}h`;
+  }
+  return `${sessionAgeDays(updatedAtMs, nowMs)}d`;
+}
+
+function sessionAgeDays(updatedAtMs: number, nowMs: number): number {
+  return Math.floor(Math.max(0, nowMs - updatedAtMs) / MILLISECONDS_PER_DAY);
 }
 
 function truncateSessionTitle(title: string): string {
