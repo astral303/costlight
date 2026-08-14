@@ -3,7 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { APPLICATION_VERSION } from "../../src/app-version/browser-version";
 
 mock.module("../../src/dashboard/CostChart", () => ({
-  CostChart: ({ kind }: { kind: string }) => <div data-testid={`${kind}-chart`} />,
+  CostChart: ({ kind, zoomContext }: { kind: string; zoomContext: string }) => (
+    <div data-testid={`${kind}-chart`} data-zoom-context={zoomContext} />
+  ),
 }));
 
 class FakeEventSource {
@@ -267,13 +269,11 @@ describe("Dashboard", () => {
       expect(parameters.get("to")).toBe(String(currentMonthStartMs - 1));
     });
 
-    const beforeCurrentMonthRequestMs = Date.now();
     fireEvent.change(rangeSelect, { target: { value: "this-month" } });
     await waitFor(() => {
       const parameters = latestSummaryParameters();
       expect(parameters.get("from")).toBe(String(currentMonthStartMs));
-      expect(Number(parameters.get("to"))).toBeGreaterThanOrEqual(beforeCurrentMonthRequestMs);
-      expect(Number(parameters.get("to"))).toBeLessThanOrEqual(Date.now());
+      expect(parameters.get("to")).toBeNull();
     });
   });
 
@@ -368,10 +368,17 @@ describe("Dashboard", () => {
     expect(screen.getByText("One bar per call · idle time removed")).toBeTruthy();
   });
 
-  test("refetches active reports after an SSE invalidation", async () => {
+  test("keeps Today open-ended without resetting its zoom context", async () => {
     const { Dashboard } = await import("../../src/dashboard/Dashboard");
     render(<Dashboard />);
     await screen.findAllByText("$1.23");
+    fireEvent.change(screen.getByLabelText("Range"), { target: { value: "today" } });
+    const todayStartMs = new Date().setHours(0, 0, 0, 0);
+    await waitFor(() => {
+      expect(latestSummaryParameters().get("from")).toBe(String(todayStartMs));
+    });
+    expect(latestSummaryParameters().get("to")).toBeNull();
+    const zoomContext = screen.getByTestId("bucket-chart").getAttribute("data-zoom-context");
     const initialSummaryRequestCount = requestedUrls.filter((url) => url.startsWith("/api/summary?")).length;
     const eventSource = FakeEventSource.instances.at(-1);
     expect(eventSource).toBeDefined();
@@ -381,6 +388,8 @@ describe("Dashboard", () => {
       expect(requestedUrls.filter((url) => url.startsWith("/api/summary?")).length)
         .toBeGreaterThan(initialSummaryRequestCount);
     });
+    expect(latestSummaryParameters().get("to")).toBeNull();
+    expect(screen.getByTestId("bucket-chart").getAttribute("data-zoom-context")).toBe(zoomContext);
   });
 });
 

@@ -136,7 +136,7 @@ export function Dashboard() {
             <CostChart
               kind="bucket"
               points={dashboard.timeseries?.points ?? []}
-              zoomContext={dashboard.queryString}
+              zoomContext={dashboard.zoomContext}
             />
           </Suspense>
         </article>
@@ -146,7 +146,7 @@ export function Dashboard() {
             <CostChart
               kind="cumulative"
               points={dashboard.timeseries?.points ?? []}
-              zoomContext={dashboard.queryString}
+              zoomContext={dashboard.zoomContext}
             />
           </Suspense>
         </article>

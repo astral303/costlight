@@ -100,7 +100,11 @@ export function useDashboardData(filters: DashboardViewFilters) {
     summary: null,
     timeseries: null,
   });
-  const queryString = useMemo(() => createQueryString(filters), [filters]);
+  const queryString = useMemo(
+    () => createQueryString(filters),
+    [filters, liveConnection.dataVersion, manualVersion],
+  );
+  const zoomContext = useMemo(() => createZoomContext(filters), [filters]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -154,44 +158,56 @@ export function useDashboardData(filters: DashboardViewFilters) {
     queryString,
     refreshPricing: () => runAction("/api/pricing/refresh"),
     rescan: () => runAction("/api/rescan"),
+    zoomContext,
   };
 }
 
 function createQueryString(filters: DashboardViewFilters): string {
-  const parameters = new URLSearchParams({
-    bucket: filters.bucket,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
+  const parameters = createFilterParameters(filters);
   const now = Date.now();
   const timeRange = selectedTimeRange(filters.range, now);
   if (timeRange !== null) {
     parameters.set("from", String(timeRange.fromMs));
-    parameters.set("to", String(timeRange.toMs));
+    if (timeRange.toMs !== undefined) {
+      parameters.set("to", String(timeRange.toMs));
+    }
   }
+  return parameters.toString();
+}
+
+function createZoomContext(filters: DashboardViewFilters): string {
+  const parameters = createFilterParameters(filters);
+  parameters.set("range", filters.range);
+  return parameters.toString();
+}
+
+function createFilterParameters(filters: DashboardViewFilters): URLSearchParams {
+  const parameters = new URLSearchParams({
+    bucket: filters.bucket,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
   setOptionalParameter(parameters, "workspace", filters.workspace);
   setOptionalParameter(parameters, "session", filters.sessionId);
   setOptionalParameter(parameters, "model", filters.model);
   setOptionalParameter(parameters, "provider", filters.provider);
   setOptionalParameter(parameters, "agentType", filters.agentType);
   setOptionalParameter(parameters, "agentId", filters.agentId);
-  return parameters.toString();
+  return parameters;
 }
 
 function selectedTimeRange(
   range: DashboardViewFilters["range"],
   nowMs: number,
-): { fromMs: number; toMs: number } | null {
+): { fromMs: number; toMs?: number } | null {
   const now = new Date(nowMs);
   if (range === "today") {
     return {
       fromMs: new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(),
-      toMs: nowMs,
     };
   }
   if (range === "this-month") {
     return {
       fromMs: new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
-      toMs: nowMs,
     };
   }
   if (range === "last-month") {
@@ -205,7 +221,6 @@ function selectedTimeRange(
     const dayCount = range === "7d" ? 7 : 30;
     return {
       fromMs: nowMs - dayCount * 24 * 60 * 60 * 1_000,
-      toMs: nowMs,
     };
   }
   return null;
