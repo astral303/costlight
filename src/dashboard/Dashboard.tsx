@@ -273,6 +273,8 @@ function FilterBar({
       <FilterSelect label="Range" value={filters.range} onChange={(value) => onChange("range", value as DashboardViewFilters["range"])} options={[
         { label: "All time", value: "all" },
         { label: "Today", value: "today" },
+        { label: "This month", value: "this-month" },
+        { label: "Last month", value: "last-month" },
         { label: "Last 7 days", value: "7d" },
         { label: "Last 30 days", value: "30d" },
       ]} />

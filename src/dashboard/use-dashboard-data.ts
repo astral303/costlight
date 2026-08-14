@@ -15,7 +15,7 @@ export interface DashboardViewFilters {
   bucket: "auto" | BucketSize;
   model: string;
   provider: string;
-  range: "all" | "today" | "7d" | "30d";
+  range: "all" | "today" | "this-month" | "last-month" | "7d" | "30d";
   sessionId: string;
   sessionSort: "cost" | "recent" | "start";
   workspace: string;
@@ -163,15 +163,10 @@ function createQueryString(filters: DashboardViewFilters): string {
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
   const now = Date.now();
-  if (filters.range === "today") {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    parameters.set("from", String(startOfToday.getTime()));
-    parameters.set("to", String(now));
-  } else if (filters.range === "7d" || filters.range === "30d") {
-    const dayCount = filters.range === "7d" ? 7 : 30;
-    parameters.set("from", String(now - dayCount * 24 * 60 * 60 * 1_000));
-    parameters.set("to", String(now));
+  const timeRange = selectedTimeRange(filters.range, now);
+  if (timeRange !== null) {
+    parameters.set("from", String(timeRange.fromMs));
+    parameters.set("to", String(timeRange.toMs));
   }
   setOptionalParameter(parameters, "workspace", filters.workspace);
   setOptionalParameter(parameters, "session", filters.sessionId);
@@ -180,6 +175,40 @@ function createQueryString(filters: DashboardViewFilters): string {
   setOptionalParameter(parameters, "agentType", filters.agentType);
   setOptionalParameter(parameters, "agentId", filters.agentId);
   return parameters.toString();
+}
+
+function selectedTimeRange(
+  range: DashboardViewFilters["range"],
+  nowMs: number,
+): { fromMs: number; toMs: number } | null {
+  const now = new Date(nowMs);
+  if (range === "today") {
+    return {
+      fromMs: new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(),
+      toMs: nowMs,
+    };
+  }
+  if (range === "this-month") {
+    return {
+      fromMs: new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
+      toMs: nowMs,
+    };
+  }
+  if (range === "last-month") {
+    const currentMonthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    return {
+      fromMs: new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(),
+      toMs: currentMonthStartMs - 1,
+    };
+  }
+  if (range === "7d" || range === "30d") {
+    const dayCount = range === "7d" ? 7 : 30;
+    return {
+      fromMs: nowMs - dayCount * 24 * 60 * 60 * 1_000,
+      toMs: nowMs,
+    };
+  }
+  return null;
 }
 
 function setOptionalParameter(parameters: URLSearchParams, key: string, value: string): void {

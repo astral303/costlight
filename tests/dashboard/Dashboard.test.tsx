@@ -227,6 +227,41 @@ describe("Dashboard", () => {
     expect(requestedUrls.every((url) => !url.includes("sort="))).toBe(true);
   });
 
+  test("offers complete and current calendar-month ranges", async () => {
+    const { Dashboard } = await import("../../src/dashboard/Dashboard");
+    render(<Dashboard />);
+    await screen.findAllByText("$1.23");
+
+    const rangeSelect = screen.getByLabelText("Range") as HTMLSelectElement;
+    expect([...rangeSelect.options].map((option) => option.text)).toEqual([
+      "All time",
+      "Today",
+      "This month",
+      "Last month",
+      "Last 7 days",
+      "Last 30 days",
+    ]);
+    const now = new Date();
+    const currentMonthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const previousMonthStartMs = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+
+    fireEvent.change(rangeSelect, { target: { value: "last-month" } });
+    await waitFor(() => {
+      const parameters = latestSummaryParameters();
+      expect(parameters.get("from")).toBe(String(previousMonthStartMs));
+      expect(parameters.get("to")).toBe(String(currentMonthStartMs - 1));
+    });
+
+    const beforeCurrentMonthRequestMs = Date.now();
+    fireEvent.change(rangeSelect, { target: { value: "this-month" } });
+    await waitFor(() => {
+      const parameters = latestSummaryParameters();
+      expect(parameters.get("from")).toBe(String(currentMonthStartMs));
+      expect(Number(parameters.get("to"))).toBeGreaterThanOrEqual(beforeCurrentMonthRequestMs);
+      expect(Number(parameters.get("to"))).toBeLessThanOrEqual(Date.now());
+    });
+  });
+
   test("applies workspace filters to every report request", async () => {
     const { Dashboard } = await import("../../src/dashboard/Dashboard");
     render(<Dashboard />);
@@ -348,4 +383,10 @@ function createSession() {
     workDirectory: null,
     workspaceKey: "Workspace one",
   };
+}
+
+function latestSummaryParameters(): URLSearchParams {
+  const latestRequest = requestedUrls.filter((url) => url.startsWith("/api/summary?")).at(-1);
+  expect(latestRequest).toBeDefined();
+  return new URLSearchParams(latestRequest?.split("?")[1]);
 }
