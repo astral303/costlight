@@ -151,10 +151,13 @@ function parseCalVer(value: string, source: string): string {
   const month = Number(match[2]);
   const day = Number(match[3]);
   const normalized = `${year}.${month}.${day}`;
+
+  if (value !== normalized) {
+    throw new Error(`Invalid ${source}: ${value}. Format is not normalized to YYYY.M.D form (expected: ${normalized}).`);
+  }
+
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    value !== normalized
-    || date.getUTCFullYear() !== year
+  if (date.getUTCFullYear() !== year
     || date.getUTCMonth() !== month - 1
     || date.getUTCDate() !== day
   ) {
