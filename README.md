@@ -66,7 +66,7 @@ Official provider billing exports remain the authority for reconciliation.
 | `bun run import` | Import/reconcile history once and print aggregate diagnostics |
 | `mise run analyze-cache` | Infer the Kimi cache inactivity window from all local wire logs |
 | `bun run reprice` | Explicitly refresh rates and recalculate all historical calls |
-| `bun run audit` | Compare Kimi totals with ccusage through Bun's package runner |
+| `bun run audit` | Compare Kimi and Claude totals with ccusage through Bun's package runner |
 
 All JavaScript and TypeScript executables run through the mise-pinned Bun toolchain. `bun.lock` and `mise.lock` pin the resolved dependencies and Bun artifacts.
 
@@ -268,4 +268,19 @@ The optional ccusage audit never runs during normal ingestion:
 bun run audit
 ```
 
-It runs `bunx ccusage kimi daily --json`, which downloads ccusage into Bun's package cache on first use when needed. The audit reports replay exclusions rather than hiding the expected difference. The compatibility reference is ccusage commit [`033c1f7631f603fc939fdc85163e8203f0084f83`](https://github.com/ccusage/ccusage/tree/033c1f7631f603fc939fdc85163e8203f0084f83); ccusage is not a runtime dependency, and no ccusage source file is copied into this project.
+It audits Kimi with `bunx ccusage kimi daily --json` and Claude with `bunx ccusage claude daily --json --mode calculate`, which downloads ccusage into Bun's package cache on first use when needed. The audit reports replay exclusions rather than hiding the expected difference. The compatibility reference is ccusage commit [`033c1f7631f603fc939fdc85163e8203f0084f83`](https://github.com/ccusage/ccusage/tree/033c1f7631f603fc939fdc85163e8203f0084f83); ccusage is not a runtime dependency, and no ccusage source file is copied into this project.
+
+Each provider is audited only when it has calls in the ledger, so a machine that runs one backend never invokes ccusage for the other. Both keys always appear in the report:
+
+| Status | Meaning |
+|---|---|
+| `compared` | ccusage ran and the totals are reported |
+| `not-detected` | The ledger holds no calls for that provider |
+| `nothing-metered` | Claude ran locally, but the account policy meters none of its models |
+| `failed` | ccusage could not be run or its output could not be read |
+
+One provider's failure never suppresses the other's numbers; `bun run audit` exits non-zero when either reports `failed`.
+
+`--mode calculate` makes ccusage recompute Claude costs from tokens instead of reusing the `costUSD` value Claude Code wrote into the transcript, so the comparison comes from two independent price calculations rather than one shared figure.
+
+The Claude comparison is metered-only on both sides. `ccusage claude daily` totals every Claude model, while Costlight applies the account policy above, so the audit sums only the `modelBreakdowns` whose model the ledger metered — on Pro that is Fable alone, excluding Haiku and Opus usage covered by the subscription. The compared set is listed under `meteredModels` and the remaining Claude models under `unmeteredModels`, by name only: subscription-covered spend is not what this audit measures. Model-level filtering cannot split a day whose account policy changed mid-history, such as Pro to Enterprise, because ccusage's breakdown carries no metering dimension.

@@ -106,7 +106,7 @@ function parseUsdPerMillion(value: string | undefined): number {
   return parsed;
 }
 
-function modelKeyFromRawModel(rawModel: string): string {
+export function modelKeyFromRawModel(rawModel: string): string {
   const separatorIndex = rawModel.indexOf("/");
   return separatorIndex === -1 ? rawModel : rawModel.slice(separatorIndex + 1);
 }
