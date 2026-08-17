@@ -71,14 +71,17 @@ describe("parseClaudeUsageAuditArguments", () => {
 
     expect(auditArguments.reportPath).toBe("usage.json");
     expect(auditArguments.csvPath).toBeUndefined();
+    expect(auditArguments.layout).toBe("long");
     expect(auditArguments.timeZone).toBe("UTC");
     expect(auditArguments.runtimeArguments).toEqual(["--data-dir", "C:\\synthetic-data"]);
   });
 
-  test("accepts an explicit deviation file and time zone", () => {
+  test("accepts an explicit deviation file, layout and time zone", () => {
     const auditArguments = parseClaudeUsageAuditArguments([
       "--csv",
       "deviations.csv",
+      "--layout",
+      "wide",
       "--report",
       "usage.json",
       "--timezone",
@@ -86,12 +89,15 @@ describe("parseClaudeUsageAuditArguments", () => {
     ]);
 
     expect(auditArguments.csvPath).toBe("deviations.csv");
+    expect(auditArguments.layout).toBe("wide");
     expect(auditArguments.timeZone).toBe("America/New_York");
     expect(auditArguments.runtimeArguments).toEqual([]);
   });
 
-  test("rejects a missing export and an unusable time zone", () => {
+  test("rejects a missing export, an unknown layout and an unusable time zone", () => {
     expect(() => parseClaudeUsageAuditArguments([])).toThrow("--report requires the usage export");
+    expect(() => parseClaudeUsageAuditArguments(["--report", "usage.json", "--layout", "tall"]))
+      .toThrow("--layout accepts long or wide, not tall.");
     expect(() => parseClaudeUsageAuditArguments(["--report", "usage.json", "--timezone", "Mars"]))
       .toThrow("Invalid time zone: Mars");
   });

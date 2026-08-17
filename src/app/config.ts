@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
+import type { CsvLayout } from "../call-accounting/anthropic-usage-audit";
 import { assertValidTimeZone } from "../dashboard/bucketing";
 
 const DEFAULT_PORT = 4637;
@@ -102,6 +103,7 @@ export function parseRuntimeOptions(
 
 export interface ClaudeUsageAuditArguments {
   csvPath: string | undefined;
+  layout: CsvLayout;
   reportPath: string;
   runtimeArguments: readonly string[];
   timeZone: string;
@@ -116,6 +118,7 @@ export function parseClaudeUsageAuditArguments(
 ): ClaudeUsageAuditArguments {
   const runtimeArguments: string[] = [];
   let csvPath: string | undefined;
+  let layout: CsvLayout = "long";
   let reportPath: string | undefined;
   let timeZone = DEFAULT_USAGE_REPORT_TIME_ZONE;
 
@@ -128,6 +131,9 @@ export function parseClaudeUsageAuditArguments(
     switch (argument) {
       case "--csv":
         csvPath = requireOptionValue(arguments_, ++index, argument);
+        break;
+      case "--layout":
+        layout = parseCsvLayout(requireOptionValue(arguments_, ++index, argument));
         break;
       case "--report":
         reportPath = requireOptionValue(arguments_, ++index, argument);
@@ -144,7 +150,15 @@ export function parseClaudeUsageAuditArguments(
     throw new Error("--report requires the usage export downloaded from Anthropic's web UI.");
   }
 
-  return { csvPath, reportPath, runtimeArguments, timeZone };
+  return { csvPath, layout, reportPath, runtimeArguments, timeZone };
+}
+
+function parseCsvLayout(value: string): CsvLayout {
+  if (value !== "long" && value !== "wide") {
+    throw new Error(`--layout accepts long or wide, not ${value}.`);
+  }
+
+  return value;
 }
 
 export function isLoopbackHost(host: string): boolean {

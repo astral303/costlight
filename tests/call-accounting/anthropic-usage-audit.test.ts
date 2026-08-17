@@ -139,12 +139,41 @@ describe("formatUsageComparisonCsv", () => {
       modelKey: OPUS_MODEL,
     };
 
-    expect(formatUsageComparisonCsv([row])).toBe([
+    expect(formatUsageComparisonCsv([row], "long")).toBe([
       "date,model,source,cost_usd,requests,input,output,"
       + "cache_read,cache_write_5m,cache_write_1h,cache_write_untyped",
       "2026-08-03,claude-opus-4-8,anthropic,17.8500,155,100,200,400,30,0,0",
       "2026-08-03,claude-opus-4-8,costlight,15.2000,140,90,180,350,30,0,0",
       "2026-08-03,claude-opus-4-8,difference,-2.6500,-15,-10,-20,-50,0,0,0",
+      "",
+    ].join("\n"));
+  });
+
+  test("puts the three sources side by side per measure in the wide layout", () => {
+    const row: UsageComparisonRow = {
+      anthropic: totals(17.85, 155, { input: 100, output: 200 }),
+      costlight: totals(15.2, 140, { input: 90, output: 180 }),
+      date: "2026-08-03",
+      modelKey: OPUS_MODEL,
+    };
+
+    expect(formatUsageComparisonCsv([row], "wide")).toBe([
+      "date,model,"
+      + "anthropic.cost_usd,costlight.cost_usd,difference.cost_usd,"
+      + "anthropic.requests,costlight.requests,difference.requests,"
+      + "anthropic.input,costlight.input,difference.input,"
+      + "anthropic.output,costlight.output,difference.output,"
+      + "anthropic.cache_read,costlight.cache_read,difference.cache_read,"
+      + "anthropic.cache_write_5m,costlight.cache_write_5m,difference.cache_write_5m,"
+      + "anthropic.cache_write_1h,costlight.cache_write_1h,difference.cache_write_1h,"
+      + "anthropic.cache_write_untyped,costlight.cache_write_untyped,"
+      + "difference.cache_write_untyped",
+      "2026-08-03,claude-opus-4-8,"
+      + "17.8500,15.2000,-2.6500,"
+      + "155,140,-15,"
+      + "100,90,-10,"
+      + "200,180,-20,"
+      + "0,0,0,0,0,0,0,0,0,0,0,0",
       "",
     ].join("\n"));
   });
@@ -157,7 +186,7 @@ describe("formatUsageComparisonCsv", () => {
       modelKey: 'claude,"odd"',
     };
 
-    expect(formatUsageComparisonCsv([row]).split("\n")[1])
+    expect(formatUsageComparisonCsv([row], "long").split("\n")[1])
       .toBe('2026-08-03,"claude,""odd""",anthropic,1.0000,1,0,0,0,0,0,0');
   });
 });

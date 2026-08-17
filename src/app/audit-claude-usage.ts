@@ -20,7 +20,7 @@ try {
     // detail goes to a spreadsheet-ready file whose path the summary reports.
     const csvPath = auditArguments.csvPath
       ?? join(options.dataDirectory, "claude-usage-deviations.csv");
-    await Bun.write(csvPath, formatUsageComparisonCsv(report.rows));
+    await Bun.write(csvPath, formatUsageComparisonCsv(report.rows, auditArguments.layout));
     console.log(JSON.stringify({ csvPath, status: report.status, ...report.summary }, null, 2));
   }
 } finally {

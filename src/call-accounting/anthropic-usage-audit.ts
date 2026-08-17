@@ -11,8 +11,13 @@ import type { AnthropicUsageReport, UsageDayTotals, UsageTotals } from "./anthro
 const ANTHROPIC_PROVIDER = "anthropic";
 const NANO_PER_USD = 1_000_000_000;
 const COST_DECIMAL_PLACES = 4;
-const CSV_IDENTITY_COLUMNS = ["date", "model", "source"] as const;
-// Each column keeps its heading next to the value it prints, so the two cannot drift apart.
+const CSV_KEY_COLUMNS = ["date", "model"] as const;
+// Both tables keep each heading next to the value it prints, so no layout can let the two drift.
+const CSV_SOURCE_COLUMNS: readonly CsvSourceColumn[] = [
+  { name: "anthropic", read: (row) => row.anthropic },
+  { name: "costlight", read: (row) => row.costlight },
+  { name: "difference", read: (row) => subtractTotals(row.costlight, row.anthropic) },
+];
 const CSV_MEASURE_COLUMNS: readonly CsvMeasureColumn[] = [
   { format: (totals) => totals.costUsd.toFixed(COST_DECIMAL_PLACES), name: "cost_usd" },
   { format: (totals) => totals.requestCount, name: "requests" },
@@ -23,6 +28,12 @@ const CSV_MEASURE_COLUMNS: readonly CsvMeasureColumn[] = [
   { format: (totals) => totals.tokens.cacheWrite1h, name: "cache_write_1h" },
   { format: (totals) => totals.tokens.cacheWriteUntyped, name: "cache_write_untyped" },
 ];
+
+/**
+ * `long` writes one row per source, which pivot tables and plotting tools expect. `wide` puts the
+ * three sources side by side per measure, which reads better when scanning for a deviation.
+ */
+export type CsvLayout = "long" | "wide";
 
 export interface UsageComparisonRow {
   anthropic: UsageTotals;
@@ -77,6 +88,11 @@ export type ClaudeUsageAuditReport =
 interface CsvMeasureColumn {
   format: (totals: UsageTotals) => number | string;
   name: string;
+}
+
+interface CsvSourceColumn {
+  name: string;
+  read: (row: UsageComparisonRow) => UsageTotals;
 }
 
 interface LedgerCallRow {
@@ -137,18 +153,11 @@ export function auditClaudeAgainstUsageReport(
 }
 
 /** Emits Anthropic's figure, Costlight's figure, and their difference for each day and model. */
-export function formatUsageComparisonCsv(rows: readonly UsageComparisonRow[]): string {
-  const headings = [...CSV_IDENTITY_COLUMNS, ...CSV_MEASURE_COLUMNS.map((column) => column.name)];
-  const lines = [headings.join(",")];
-  for (const row of rows) {
-    lines.push(
-      formatCsvRow(row, "anthropic", row.anthropic),
-      formatCsvRow(row, "costlight", row.costlight),
-      formatCsvRow(row, "difference", subtractTotals(row.costlight, row.anthropic)),
-    );
-  }
-
-  return `${lines.join("\n")}\n`;
+export function formatUsageComparisonCsv(
+  rows: readonly UsageComparisonRow[],
+  layout: CsvLayout,
+): string {
+  return layout === "wide" ? formatWideCsv(rows) : formatLongCsv(rows);
 }
 
 /**
@@ -323,20 +332,55 @@ function emptyTotals(): UsageTotals {
   };
 }
 
-function formatCsvRow(row: UsageComparisonRow, source: string, totals: UsageTotals): string {
-  return [
-    csvField(row.date),
-    csvField(row.modelKey),
-    source,
-    totals.costUsd.toFixed(COST_DECIMAL_PLACES),
-    totals.requestCount,
-    totals.tokens.input,
-    totals.tokens.output,
-    totals.tokens.cacheRead,
-    totals.tokens.cacheWrite5m,
-    totals.tokens.cacheWrite1h,
-    totals.tokens.cacheWriteUntyped,
-  ].join(",");
+function formatLongCsv(rows: readonly UsageComparisonRow[]): string {
+  const headings = [
+    ...CSV_KEY_COLUMNS,
+    "source",
+    ...CSV_MEASURE_COLUMNS.map((column) => column.name),
+  ];
+  const lines = [headings.join(",")];
+  for (const row of rows) {
+    for (const source of CSV_SOURCE_COLUMNS) {
+      const totals = source.read(row);
+      lines.push([
+        ...keyFields(row),
+        source.name,
+        ...CSV_MEASURE_COLUMNS.map((column) => column.format(totals)),
+      ].join(","));
+    }
+  }
+
+  return csvText(lines);
+}
+
+/** Headings and cells walk the measure and source tables in the same order, so they stay aligned. */
+function formatWideCsv(rows: readonly UsageComparisonRow[]): string {
+  const headings = [
+    ...CSV_KEY_COLUMNS,
+    ...CSV_MEASURE_COLUMNS.flatMap((column) =>
+      CSV_SOURCE_COLUMNS.map((source) => `${source.name}.${column.name}`)
+    ),
+  ];
+  const lines = [headings.join(",")];
+  for (const row of rows) {
+    const totalsPerSource = CSV_SOURCE_COLUMNS.map((source) => source.read(row));
+    lines.push([
+      ...keyFields(row),
+      ...CSV_MEASURE_COLUMNS.flatMap((column) =>
+        totalsPerSource.map((totals) => column.format(totals))
+      ),
+    ].join(","));
+  }
+
+  return csvText(lines);
+}
+
+function keyFields(row: UsageComparisonRow): readonly string[] {
+  return [csvField(row.date), csvField(row.modelKey)];
+}
+
+function csvText(lines: readonly string[]): string {
+  return `${lines.join("\n")}\n`;
 }
 
 function csvField(value: string): string {

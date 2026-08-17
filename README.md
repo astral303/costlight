@@ -298,9 +298,12 @@ bun run audit:claude-usage --report claude_usage_by_model.json
 |---|---|---|
 | `--report <file>` | required | The usage export downloaded from Anthropic |
 | `--csv <file>` | `claude-usage-deviations.csv` in the data directory | Where the per-day deviations are written |
+| `--layout <long\|wide>` | `long` | Whether each source gets its own row or its own columns |
 | `--timezone <zone>` | `UTC` | The zone that assigns each ledger call to an export day |
 
-Totals print to stdout; every day-and-model deviation goes to the CSV, which carries three rows per day and model — `anthropic`, `costlight`, and their `difference` — with cost, request count, and each token class. A shortfall in tokens points at calls Costlight never recorded, while matching tokens under a cost gap points at rates. Anthropic reports whole cents per day and model, so each row's cost is exact only to half a cent.
+Totals print to stdout; every day-and-model deviation goes to the CSV with cost, request count, and each token class. A shortfall in tokens points at calls Costlight never recorded, while matching tokens under a cost gap points at rates. Anthropic reports whole cents per day and model, so each row's cost is exact only to half a cent.
+
+The `long` layout writes three rows per day and model — `anthropic`, `costlight`, and their `difference` — which is the shape pivot tables and plotting tools expect. The `wide` layout writes one row per day and model, with the three sources side by side under each measure (`anthropic.cost_usd`, `costlight.cost_usd`, `difference.cost_usd`, then the next measure), which is easier to scan for the day that moved.
 
 The export must be the daily model-tier report in USD; another grouping is rejected rather than compared against mismatched buckets. Anthropic buckets it server-side, so a deviation pattern that shifts consistently by one day means `--timezone` needs the zone the account is billed in.
 
