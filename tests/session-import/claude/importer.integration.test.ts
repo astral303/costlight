@@ -53,11 +53,19 @@ describe("Claude session import", () => {
         workspace_key: "project",
       });
       expect(database.query<{
+        agent_key: string;
+        agent_label: string;
         agent_type: string;
         parent_agent_id: string;
       }, []>(`
-        SELECT agent_type, parent_agent_id FROM agents WHERE agent_id = 'test'
-      `).get()).toEqual({ agent_type: "sub", parent_agent_id: "main" });
+        SELECT agent_key, agent_label, agent_type, parent_agent_id
+        FROM agents WHERE agent_id = 'test'
+      `).get()).toEqual({
+        agent_key: "agent:Explore",
+        agent_label: "Explore",
+        agent_type: "sub",
+        parent_agent_id: "main",
+      });
       expect(database.query<{
         output_tokens: number;
         total_cost_nano: number;
@@ -199,5 +207,6 @@ function assistantLine(options: AssistantLineOptions): string {
     timestamp: "2026-07-26T12:00:00.000Z",
     type: "assistant",
     uuid: `event-${options.requestId}-${options.output}`,
+    ...(options.requestId === "subagent-request" ? { attributionAgent: "Explore" } : {}),
   });
 }

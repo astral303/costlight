@@ -50,7 +50,11 @@ export function handleDashboardRoute(
     return Response.json({ models: queryModels(options.database, filters) });
   }
   if (url.pathname === "/api/options") {
-    return Response.json(queryFilterOptions(options.database, options.privacyMode));
+    return Response.json(queryFilterOptions(
+      options.database,
+      options.privacyMode,
+      filters.provider,
+    ));
   }
 
   const agentPathMatch = /^\/api\/sessions\/([^/]+)\/agents$/.exec(url.pathname);

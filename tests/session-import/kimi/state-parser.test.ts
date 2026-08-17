@@ -7,10 +7,24 @@ describe("parseSessionState", () => {
       new URL("./fixtures/state-main-sub.json", import.meta.url),
     ).text();
     const parsed = parseSessionState(fixture, {
-      agentDirectories: new Map([
-        ["main", "C:\\live\\agents\\main"],
-        ["agent-0", "C:\\live\\agents\\agent-0"],
-      ]),
+      agents: [
+        {
+          agentId: "main",
+          agentKey: "main",
+          agentLabel: "Main",
+          agentType: "main",
+          parentAgentId: null,
+          sourceDirectory: "C:\\live\\agents\\main",
+        },
+        {
+          agentId: "agent-0",
+          agentKey: "agent-0",
+          agentLabel: "agent-0",
+          agentType: "unknown",
+          parentAgentId: null,
+          sourceDirectory: "C:\\live\\agents\\agent-0",
+        },
+      ],
       fallbackTimestampMs: 0,
     });
 
@@ -18,12 +32,16 @@ describe("parseSessionState", () => {
     expect(parsed.agents).toEqual([
       {
         agentId: "main",
+        agentKey: "main",
+        agentLabel: "Main",
         agentType: "main",
         parentAgentId: null,
         sourceDirectory: "C:\\live\\agents\\main",
       },
       {
         agentId: "agent-0",
+        agentKey: "agent-0",
+        agentLabel: "agent-0",
         agentType: "sub",
         parentAgentId: "main",
         sourceDirectory: "C:\\live\\agents\\agent-0",

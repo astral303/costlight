@@ -55,6 +55,8 @@ export function Dashboard() {
   function updateProvider(provider: string): void {
     setFilters((current) => ({
       ...current,
+      agentKey: "",
+      model: "",
       provider,
       sessionId: "",
       workspace: "",
@@ -299,7 +301,7 @@ function FilterBar({
         { label: "Subagent", value: "sub" },
         { label: "Unknown", value: "unknown" },
       ]} includeAll />
-      <FilterSelect label="Agent" value={filters.agentId} onChange={(value) => onChange("agentId", value)} options={options.agents} includeAll />
+      <FilterSelect label="Agent" value={filters.agentKey} onChange={(value) => onChange("agentKey", value)} options={options.agents} includeAll />
       <FilterSelect
         disabled={isShowingIndividualCalls}
         label="Bucket"
@@ -482,9 +484,12 @@ function SessionAgents({
   return (
     <div className="agent-list">
       {agents.map((agent) => (
-        <div className="agent-list__item" key={agent.agentId}>
+        <div className="agent-list__item" key={`${agent.agentType}:${agent.agentKey}`}>
           <span className={`agent-type agent-type--${agent.agentType}`}>{agent.agentType}</span>
-          <span><strong>{agent.agentId}</strong><small>{agent.parentAgentId === null ? "Root agent" : `Child of ${agent.parentAgentId}`}</small></span>
+          <span>
+            <strong>{agent.agentLabel}</strong>
+            <small>{agent.agentType === "main" ? "Main agent" : "Agent role"}</small>
+          </span>
           <span>{agent.callCount.toLocaleString()} calls</span>
           <strong>{formatUsdNano(agent.totalCostNano)}</strong>
         </div>

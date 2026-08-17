@@ -2,6 +2,10 @@ import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import type { DiscoveredSession, DiscoveredUsageFile } from "../types";
+import {
+  mainAgentIdentity,
+  readClaudeAgentIdentity,
+} from "./agent-identity";
 
 const CLAUDE_SESSION_PREFIX = "anthropic:";
 
@@ -22,12 +26,22 @@ export async function discoverClaudeSessions(
           rawSessionId,
           mainTranscriptPath,
         );
-        const agentDirectories = new Map(
-          usageFiles.map((usageFile) => [usageFile.agentId, dirname(usageFile.path)]),
-        );
+        const agents = await Promise.all(usageFiles.map(async (usageFile) => {
+          const identity = usageFile.agentId === "main"
+            ? mainAgentIdentity()
+            : await readClaudeAgentIdentity(usageFile.path);
+          return {
+            agentId: usageFile.agentId,
+            agentKey: identity.key,
+            agentLabel: identity.label,
+            agentType: usageFile.agentId === "main" ? "main" as const : "sub" as const,
+            parentAgentId: usageFile.agentId === "main" ? null : "main",
+            sourceDirectory: dirname(usageFile.path),
+          };
+        }));
 
         sessions.push({
-          agentDirectories,
+          agents,
           provider: "anthropic",
           sessionDirectory: resolve(projectDirectory, rawSessionId),
           sessionId: `${CLAUDE_SESSION_PREFIX}${rawSessionId}`,

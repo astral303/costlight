@@ -5,7 +5,7 @@ import type { DashboardFilters } from "./contracts";
 const optionalTimestamp = z.string().regex(/^\d+$/).transform(Number).optional();
 
 const querySchema = z.object({
-  agentId: z.string().min(1).optional(),
+  agent: z.string().min(1).optional(),
   agentType: z.enum(["main", "sub", "unknown"]).optional(),
   bucket: z.enum(["auto", "minute", "hour", "day", "week"]).default("auto"),
   from: optionalTimestamp,
@@ -25,7 +25,7 @@ export function parseDashboardFilters(url: URL): DashboardFilters {
   }
 
   return {
-    ...(parsed.agentId === undefined ? {} : { agentId: parsed.agentId }),
+    ...(parsed.agent === undefined ? {} : { agentKey: parsed.agent }),
     ...(parsed.agentType === undefined ? {} : { agentType: parsed.agentType }),
     bucket: parsed.bucket,
     ...(parsed.from === undefined ? {} : { fromMs: parsed.from }),

@@ -21,13 +21,17 @@ export async function discoverKimiSessions(
           continue;
         }
 
-        const agentDirectories = new Map<string, string>();
-        for (const wireFile of usageFiles) {
-          agentDirectories.set(wireFile.agentId, dirname(wireFile.path));
-        }
+        const agents = usageFiles.map((wireFile) => ({
+          agentId: wireFile.agentId,
+          agentKey: wireFile.agentId,
+          agentLabel: wireFile.agentId === "main" ? "Main" : wireFile.agentId,
+          agentType: wireFile.agentId === "main" ? "main" as const : "unknown" as const,
+          parentAgentId: null,
+          sourceDirectory: dirname(wireFile.path),
+        }));
 
         discoveredSessions.push({
-          agentDirectories,
+          agents,
           provider: "moonshotai",
           sessionDirectory: resolve(sessionDirectory),
           sessionId: sessionDirectoryEntry.name,

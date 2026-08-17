@@ -1,12 +1,14 @@
 export interface AgentMetadata {
   agentId: string;
+  agentKey: string;
+  agentLabel: string;
   agentType: "main" | "sub" | "unknown";
   parentAgentId: string | null;
   sourceDirectory: string;
 }
 
 export interface DiscoveredSession {
-  agentDirectories: ReadonlyMap<string, string>;
+  agents: readonly AgentMetadata[];
   provider: string;
   sessionDirectory: string;
   sessionId: string;
@@ -67,13 +69,13 @@ export interface ParsedSessionMetadataChunk {
 }
 
 export interface SessionStateParserDefaults {
-  agentDirectories: ReadonlyMap<string, string>;
+  agents: readonly AgentMetadata[];
   fallbackTimestampMs: number;
 }
 
 export interface SessionImportProvider {
   createFallbackSessionState: (
-    agentDirectories: ReadonlyMap<string, string>,
+    agents: readonly AgentMetadata[],
     timestampMs: number,
   ) => ParsedSessionState;
   discoverSessions: () => Promise<readonly DiscoveredSession[]>;

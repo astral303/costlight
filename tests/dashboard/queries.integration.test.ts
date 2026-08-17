@@ -114,7 +114,7 @@ describe("dashboard queries", () => {
         sourcePath: "wire-a",
       }, createUsage("session-request", 1_000));
 
-      const options = queryFilterOptions(database, false, 100);
+      const options = queryFilterOptions(database, false, undefined, 100);
 
       expect(options.sessions).toEqual([{
         label: `0m · $0.46 · ${"A".repeat(47)}… · wd_project_123`,
@@ -220,11 +220,131 @@ describe("dashboard queries", () => {
         .toEqual(["metered"]);
       expect(queryModels(database, filters).map((model) => model.rawModel))
         .toEqual(["claude-fable-5"]);
-      expect(queryFilterOptions(database, false).sessions.map((session) => session.value))
+      expect(queryFilterOptions(database, false, undefined).sessions.map((session) => session.value))
         .toEqual(["metered"]);
       expect(database.query<{ count: number }, []>(`
         SELECT COUNT(*) AS count FROM usage_occurrences
       `).get()?.count).toBe(2);
+    } finally {
+      database.close();
+    }
+  });
+
+  test("scopes filter options to a provider and groups Claude runs by role", () => {
+    const database = openDashboardDatabase(":memory:");
+    try {
+      insertSource(database, "claude-session", "claude-run-1", "sub", 100, "claude-wire", {
+        agentKey: "agent:Explore",
+        agentLabel: "Explore",
+        provider: "anthropic",
+        title: "Claude work",
+        workspaceKey: "claude-workspace",
+      });
+      insertSource(database, "claude-session-2", "claude-run-2", "sub", 150, "claude-wire-2", {
+        agentKey: "agent:Explore",
+        agentLabel: "Explore",
+        provider: "anthropic",
+        title: "More Claude work",
+        workspaceKey: "claude-workspace",
+      });
+      database.query(`
+        INSERT INTO agents (
+          session_id, agent_id, agent_key, agent_label, agent_type,
+          parent_agent_id, source_directory
+        ) VALUES (
+          'claude-session', 'claude-run-3', 'agent:Explore', 'Explore',
+          'sub', 'main', 'claude-wire-3'
+        )
+      `).run();
+      database.query(`
+        INSERT INTO source_files (path, source_root, session_id, agent_id)
+        VALUES ('claude-wire-3', 'root', 'claude-session', 'claude-run-3')
+      `).run();
+      insertSource(database, "kimi-session", "main", "main", 200, "kimi-wire", {
+        provider: "moonshotai",
+        title: "Kimi work",
+        workspaceKey: "kimi-workspace",
+      });
+      const ledger = new CallLedger(database, callPricing(() => ({
+        basis: "test catalog",
+        cacheCreation1hNanoPerToken: 1,
+        cacheCreation5mNanoPerToken: 1,
+        cacheCreationNanoPerToken: 1,
+        cacheReadNanoPerToken: 1,
+        confidence: "exact",
+        inputNanoPerToken: 1,
+        outputNanoPerToken: 1,
+        rateId: null,
+        resolvedModelKey: "test/model",
+      })));
+      ledger.recordUsage(
+        {
+          agentId: "claude-run-3",
+          generation: 0,
+          sessionId: "claude-session",
+          sourcePath: "claude-wire-3",
+        },
+        { ...createUsage("claude-request-3", 1_250), model: "claude-opus-4-1" },
+      );
+      ledger.recordUsage(
+        {
+          agentId: "claude-run-2",
+          generation: 0,
+          sessionId: "claude-session-2",
+          sourcePath: "claude-wire-2",
+        },
+        { ...createUsage("claude-request-2", 1_500), model: "claude-opus-4-1" },
+      );
+      ledger.recordUsage(
+        {
+          agentId: "claude-run-1",
+          generation: 0,
+          sessionId: "claude-session",
+          sourcePath: "claude-wire",
+        },
+        { ...createUsage("claude-request", 1_000), model: "claude-opus-4-1" },
+      );
+      ledger.recordUsage(
+        {
+          agentId: "main",
+          generation: 0,
+          sessionId: "kimi-session",
+          sourcePath: "kimi-wire",
+        },
+        createUsage("kimi-request", 2_000),
+      );
+
+      const providerFilters = { ...filters, provider: "anthropic" };
+      const options = queryFilterOptions(database, false, "anthropic", 3_000);
+
+      expect(options.providers).toEqual([
+        { label: "Claude", value: "anthropic" },
+        { label: "Kimi", value: "moonshotai" },
+      ]);
+      expect(options.workspaces).toEqual([
+        { label: "claude-workspace", value: "claude-workspace" },
+      ]);
+      expect(options.models).toEqual([
+        { label: "claude-opus-4-1", value: "claude-opus-4-1" },
+      ]);
+      expect(options.agents).toEqual([
+        { label: "Explore", value: "agent:Explore" },
+      ]);
+      expect(options.sessions.map((session) => session.value)).toEqual([
+        "claude-session",
+        "claude-session-2",
+      ]);
+      expect(queryAgents(database, "claude-session", providerFilters)).toHaveLength(1);
+      expect(queryAgents(database, "claude-session", providerFilters)[0]).toMatchObject({
+        agentKey: "agent:Explore",
+        agentLabel: "Explore",
+        agentType: "sub",
+        callCount: 2,
+      });
+      expect(querySummary(database, {
+        ...providerFilters,
+        agentKey: "agent:Explore",
+      }).callCount).toBe(3);
     } finally {
       database.close();
     }
@@ -275,7 +395,7 @@ describe("dashboard queries", () => {
         });
       }
 
-      const sessions = queryFilterOptions(database, false, nowMs).sessions;
+      const sessions = queryFilterOptions(database, false, undefined, nowMs).sessions;
 
       expect(sessions.map(({ recencyGroup, value }) => ({ recencyGroup, value }))).toEqual([
         { recencyGroup: "Last 24 hours", value: "recent-high" },
@@ -303,7 +423,13 @@ function insertSource(
   agentType: "main" | "sub",
   createdAtMs: number,
   sourcePath: string,
-  session: { provider?: string; title?: string; workspaceKey?: string } = {},
+  session: {
+    agentKey?: string;
+    agentLabel?: string;
+    provider?: string;
+    title?: string;
+    workspaceKey?: string;
+  } = {},
 ): void {
   const workspaceKey = session.workspaceKey ?? "workspace";
   const title = session.title ?? null;
@@ -320,13 +446,24 @@ function insertSource(
     createdAtMs,
   );
   database.query(`
-    INSERT INTO agents (session_id, agent_id, agent_type, parent_agent_id, source_directory)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(sessionId, agentId, agentType, agentType === "sub" ? "main" : null, sourcePath);
+    INSERT INTO agents (
+      session_id, agent_id, agent_key, agent_label, agent_type,
+      parent_agent_id, source_directory
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    sessionId,
+    agentId,
+    session.agentKey ?? agentId,
+    session.agentLabel ?? (agentId === "main" ? "Main" : agentId),
+    agentType,
+    agentType === "sub" ? "main" : null,
+    sourcePath,
+  );
   if (agentType === "sub") {
     database.query(`
-      INSERT INTO agents (session_id, agent_id, agent_type, source_directory)
-      VALUES (?, 'main', 'main', ?)
+      INSERT INTO agents (
+        session_id, agent_id, agent_key, agent_label, agent_type, source_directory
+      ) VALUES (?, 'main', 'main', 'Main', 'main', ?)
     `).run(sessionId, `${sourcePath}-main`);
   }
   database.query(`

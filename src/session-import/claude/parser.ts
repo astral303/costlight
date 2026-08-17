@@ -63,7 +63,7 @@ function mergeClaudeSessionMetadata(
   }
 
   return {
-    agents: createClaudeAgents(defaults.agentDirectories),
+    agents: defaults.agents,
     createdAtMs,
     title,
     updatedAtMs,
@@ -79,11 +79,11 @@ function lastCompleteLineLength(bytes: Uint8Array): number {
 }
 
 export function createFallbackClaudeSessionState(
-  agentDirectories: ReadonlyMap<string, string>,
+  agents: readonly AgentMetadata[],
   timestampMs: number,
 ): ParsedSessionState {
   return {
-    agents: createClaudeAgents(agentDirectories),
+    agents,
     createdAtMs: timestampMs,
     title: null,
     updatedAtMs: timestampMs,
@@ -212,17 +212,6 @@ function parseTokenCounts(value: unknown): UsageTokenCounts | null {
     inputOther,
     output,
   };
-}
-
-function createClaudeAgents(
-  agentDirectories: ReadonlyMap<string, string>,
-): readonly AgentMetadata[] {
-  return [...agentDirectories].map(([agentId, sourceDirectory]) => ({
-    agentId,
-    agentType: agentId === "main" ? "main" : "sub",
-    parentAgentId: agentId === "main" ? null : "main",
-    sourceDirectory,
-  }));
 }
 
 function parseJsonRecord(line: string): Record<string, unknown> | null {

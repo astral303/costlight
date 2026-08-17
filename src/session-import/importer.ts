@@ -145,7 +145,8 @@ export class SessionImporter {
       .get(session.sessionId);
     const storedAgents = this.#database
       .query<AgentMetadata, [string]>(`
-        SELECT agent_id AS agentId, agent_type AS agentType,
+        SELECT agent_id AS agentId, agent_key AS agentKey, agent_label AS agentLabel,
+               agent_type AS agentType,
                parent_agent_id AS parentAgentId, source_directory AS sourceDirectory
         FROM agents
         WHERE session_id = ?
@@ -185,7 +186,7 @@ export class SessionImporter {
         parseStatus = storedMetadata.parse_status;
       } else {
         const defaults = {
-          agentDirectories: session.agentDirectories,
+          agents: session.agents,
           fallbackTimestampMs: metadataStat.birthtimeMs || metadataStat.mtimeMs,
         };
         try {
@@ -286,9 +287,14 @@ export class SessionImporter {
       for (const agent of state.agents) {
         this.#database
           .query(`
-            INSERT INTO agents (session_id, agent_id, agent_type, parent_agent_id, source_directory)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO agents (
+              session_id, agent_id, agent_key, agent_label, agent_type,
+              parent_agent_id, source_directory
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id, agent_id) DO UPDATE SET
+              agent_key = excluded.agent_key,
+              agent_label = excluded.agent_label,
               agent_type = excluded.agent_type,
               parent_agent_id = excluded.parent_agent_id,
               source_directory = excluded.source_directory
@@ -296,6 +302,8 @@ export class SessionImporter {
           .run(
             session.sessionId,
             agent.agentId,
+            agent.agentKey,
+            agent.agentLabel,
             agent.agentType,
             agent.parentAgentId,
             agent.sourceDirectory,
@@ -547,7 +555,7 @@ function storedSessionState(
   fallbackTimestampMs: number,
 ): ParsedSessionState {
   const fallback = provider.createFallbackSessionState(
-    session.agentDirectories,
+    session.agents,
     fallbackTimestampMs,
   );
   if (stored === null) return fallback;
@@ -569,7 +577,12 @@ function mergeStoredAgents(
     const stored = agents.get(discovered.agentId);
     agents.set(discovered.agentId, stored === undefined
       ? discovered
-      : { ...stored, sourceDirectory: discovered.sourceDirectory });
+      : {
+        ...stored,
+        agentKey: discovered.agentKey,
+        agentLabel: discovered.agentLabel,
+        sourceDirectory: discovered.sourceDirectory,
+      });
   }
   return [...agents.values()];
 }

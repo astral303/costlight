@@ -69,3 +69,16 @@ export const sessionMetadataCheckpointMigration = {
       ADD COLUMN metadata_checkpoint_bytes INTEGER NOT NULL DEFAULT 0;
   `,
 } as const;
+
+export const agentIdentityMigration = {
+  version: 10,
+  name: "stable agent identities",
+  sql: `
+    ALTER TABLE agents ADD COLUMN agent_key TEXT NOT NULL DEFAULT '';
+    ALTER TABLE agents ADD COLUMN agent_label TEXT NOT NULL DEFAULT '';
+    UPDATE agents
+    SET agent_key = CASE WHEN agent_type = 'main' THEN 'main' ELSE agent_id END,
+        agent_label = CASE WHEN agent_type = 'main' THEN 'Main' ELSE agent_id END;
+    CREATE INDEX agents_key_index ON agents(agent_key);
+  `,
+} as const;

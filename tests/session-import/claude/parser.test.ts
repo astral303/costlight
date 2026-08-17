@@ -74,10 +74,24 @@ describe("Claude transcript parser", () => {
       }),
     ].join("\n");
     const state = parseClaudeSessionState(content, {
-      agentDirectories: new Map([
-        ["main", "C:\\transcripts"],
-        ["agent-test", "C:\\transcripts\\subagents"],
-      ]),
+      agents: [
+        {
+          agentId: "main",
+          agentKey: "main",
+          agentLabel: "Main",
+          agentType: "main",
+          parentAgentId: null,
+          sourceDirectory: "C:\\transcripts",
+        },
+        {
+          agentId: "agent-test",
+          agentKey: "agent:Explore",
+          agentLabel: "Explore",
+          agentType: "sub",
+          parentAgentId: "main",
+          sourceDirectory: "C:\\transcripts\\subagents",
+        },
+      ],
       fallbackTimestampMs: 1,
     });
 
@@ -85,12 +99,16 @@ describe("Claude transcript parser", () => {
       agents: [
         {
           agentId: "main",
+          agentKey: "main",
+          agentLabel: "Main",
           agentType: "main",
           parentAgentId: null,
           sourceDirectory: "C:\\transcripts",
         },
         {
           agentId: "agent-test",
+          agentKey: "agent:Explore",
+          agentLabel: "Explore",
           agentType: "sub",
           parentAgentId: "main",
           sourceDirectory: "C:\\transcripts\\subagents",

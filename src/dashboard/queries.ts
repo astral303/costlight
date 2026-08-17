@@ -217,23 +217,23 @@ export function queryAgents(
     conditions.push("agent.agent_type = ?");
     parameters.push(filters.agentType);
   }
-  if (filters.agentId !== undefined) {
-    conditions.push("agent.agent_id = ?");
-    parameters.push(filters.agentId);
+  if (filters.agentKey !== undefined) {
+    conditions.push("agent.agent_key = ?");
+    parameters.push(filters.agentKey);
   }
 
   const rows = queryRows<{
-    agent_id: string;
+    agent_key: string;
+    agent_label: string;
     agent_type: AgentRow["agentType"];
     call_count: number;
-    parent_agent_id: string | null;
     total_cost_nano: number;
     unpriced_call_count: number;
   }>(database, `
     SELECT
-      agent.agent_id,
+      agent.agent_key,
+      MIN(agent.agent_label) AS agent_label,
       agent.agent_type,
-      agent.parent_agent_id,
       COUNT(call.event_fingerprint) AS call_count,
       COALESCE(SUM(call.total_cost_nano), 0) AS total_cost_nano,
       SUM(CASE WHEN call.event_fingerprint IS NOT NULL AND call.total_cost_nano IS NULL THEN 1 ELSE 0 END)
@@ -244,14 +244,15 @@ export function queryAgents(
       AND call.agent_id = agent.agent_id
       AND call.is_metered = 1
     WHERE ${conditions.join(" AND ")}
-    GROUP BY agent.session_id, agent.agent_id
-    ORDER BY CASE agent.agent_type WHEN 'main' THEN 0 WHEN 'sub' THEN 1 ELSE 2 END, agent.agent_id
+    GROUP BY agent.session_id, agent.agent_key, agent.agent_type
+    ORDER BY CASE agent.agent_type WHEN 'main' THEN 0 WHEN 'sub' THEN 1 ELSE 2 END,
+             agent_label
   `, parameters);
   return rows.map((row) => ({
-    agentId: row.agent_id,
+    agentKey: row.agent_key,
+    agentLabel: row.agent_label,
     agentType: row.agent_type,
     callCount: row.call_count,
-    parentAgentId: row.parent_agent_id,
     totalCostNano: row.total_cost_nano,
     unpricedCallCount: row.unpriced_call_count,
   }));
@@ -331,15 +332,21 @@ export function queryModels(database: Database, filters: DashboardFilters): read
 export function queryFilterOptions(
   database: Database,
   privacyMode: boolean,
+  provider: string | undefined,
   nowMs = Date.now(),
 ): FilterOptionsResponse {
+  const providerCondition = provider === undefined
+    ? ""
+    : "AND session.provider = ?";
+  const providerParameters = provider === undefined ? [] : [provider];
   const workspaces = queryRows<{ workspace_key: string }>(database, `
     SELECT DISTINCT session.workspace_key
     FROM sessions AS session
     JOIN api_calls AS call ON call.session_id = session.session_id
     WHERE call.is_metered = 1
+      ${providerCondition}
     ORDER BY session.workspace_key
-  `).map(({ workspace_key }, index) => ({
+  `, providerParameters).map(({ workspace_key }, index) => ({
     label: privacyMode ? `Workspace ${index + 1}` : workspace_key,
     value: workspace_key,
   }));
@@ -361,9 +368,10 @@ export function queryFilterOptions(
     FROM sessions AS session
     LEFT JOIN api_calls AS call
       ON call.session_id = session.session_id AND call.is_metered = 1
+    WHERE 1 = 1 ${providerCondition}
     GROUP BY session.session_id
     HAVING COALESCE(SUM(call.total_cost_nano), 0) > 0
-  `);
+  `, providerParameters);
   const archiveSplitDay = chooseArchiveSplitDay(sessions, nowMs);
   const orderedSessions = sessions.toSorted((left, right) => (
     compareSessionRecencyGroups(left.updated_at_ms, right.updated_at_ms, archiveSplitDay, nowMs)
@@ -391,19 +399,27 @@ export function queryFilterOptions(
     workspace: workspace_key,
   }));
   const models = queryRows<{ raw_model: string }>(database, `
-    SELECT DISTINCT raw_model
-    FROM api_calls
-    WHERE is_metered = 1
-    ORDER BY raw_model
-  `).map(({ raw_model }) => ({ label: raw_model, value: raw_model }));
-  const agents = queryRows<{ agent_id: string }>(database, `
-    SELECT DISTINCT agent.agent_id
+    SELECT DISTINCT call.raw_model
+    FROM api_calls AS call
+    JOIN sessions AS session ON session.session_id = call.session_id
+    WHERE call.is_metered = 1
+      ${providerCondition}
+    ORDER BY call.raw_model
+  `, providerParameters).map(({ raw_model }) => ({ label: raw_model, value: raw_model }));
+  const agents = queryRows<{ agent_key: string; agent_label: string }>(database, `
+    SELECT agent.agent_key, MIN(agent.agent_label) AS agent_label
     FROM agents AS agent
     JOIN api_calls AS call
       ON call.session_id = agent.session_id AND call.agent_id = agent.agent_id
+    JOIN sessions AS session ON session.session_id = call.session_id
     WHERE call.is_metered = 1
-    ORDER BY agent.agent_id
-  `).map(({ agent_id }) => ({ label: agent_id, value: agent_id }));
+      ${providerCondition}
+    GROUP BY agent.agent_key
+    ORDER BY agent_label
+  `, providerParameters).map(({ agent_key, agent_label }) => ({
+    label: agent_label,
+    value: agent_key,
+  }));
   const providers = queryRows<{ provider: string }>(database, `
     SELECT DISTINCT call.provider
     FROM api_calls AS call
@@ -774,9 +790,9 @@ function addCommonConditions(
     conditions.push("agent.agent_type = ?");
     parameters.push(filters.agentType);
   }
-  if (filters.agentId !== undefined) {
-    conditions.push(`${callAlias}.agent_id = ?`);
-    parameters.push(filters.agentId);
+  if (filters.agentKey !== undefined) {
+    conditions.push("agent.agent_key = ?");
+    parameters.push(filters.agentKey);
   }
 }
 

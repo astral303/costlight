@@ -114,6 +114,10 @@ describe("dashboard database migrations", () => {
       );
       expect(tableColumns(upgradedDatabase, "usage_occurrences")).toContain("account_state_id");
       expect(tableColumns(upgradedDatabase, "api_calls")).toContain("is_metered");
+      expect(tableColumns(upgradedDatabase, "agents")).toContain("agent_key");
+      expect(upgradedDatabase.query<{ agent_key: string; agent_label: string }, []>(`
+        SELECT agent_key, agent_label FROM agents WHERE agent_id = 'main'
+      `).get()).toEqual({ agent_key: "main", agent_label: "Main" });
       expect(upgradedDatabase.query<{
         is_metered: number;
         provider: string;
@@ -130,7 +134,7 @@ describe("dashboard database migrations", () => {
 });
 
 function tableColumns(database: Database, tableName: string): readonly string[] {
-  const allowedTables = new Set(["api_calls", "model_rates", "usage_occurrences"]);
+  const allowedTables = new Set(["agents", "api_calls", "model_rates", "usage_occurrences"]);
   if (!allowedTables.has(tableName)) {
     throw new Error(`Unexpected table: ${tableName}`);
   }

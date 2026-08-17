@@ -10,7 +10,7 @@ import type {
 } from "./contracts";
 
 export interface DashboardViewFilters {
-  agentId: string;
+  agentKey: string;
   agentType: "" | "main" | "sub" | "unknown";
   bucket: "auto" | BucketSize;
   model: string;
@@ -22,7 +22,7 @@ export interface DashboardViewFilters {
 }
 
 export const initialDashboardFilters: DashboardViewFilters = {
-  agentId: "",
+  agentKey: "",
   agentType: "",
   bucket: "auto",
   model: "",
@@ -114,7 +114,7 @@ export function useDashboardData(filters: DashboardViewFilters) {
       fetchJson<TimeseriesResponse>(`/api/timeseries?${queryString}`, abortController.signal),
       fetchJson<{ sessions: readonly SessionRow[] }>(`/api/sessions?${queryString}`, abortController.signal),
       fetchJson<{ models: readonly ModelRow[] }>(`/api/models?${queryString}`, abortController.signal),
-      fetchJson<FilterOptionsResponse>("/api/options", abortController.signal),
+      fetchJson<FilterOptionsResponse>(createOptionsPath(filters.provider), abortController.signal),
       fetchJson<HealthResponse>("/api/health", abortController.signal),
     ]).then(([summary, timeseries, sessions, models, options, health]) => {
       setState({
@@ -181,6 +181,12 @@ function createZoomContext(filters: DashboardViewFilters): string {
   return parameters.toString();
 }
 
+function createOptionsPath(provider: string): string {
+  if (provider.length === 0) return "/api/options";
+  const parameters = new URLSearchParams({ provider });
+  return `/api/options?${parameters}`;
+}
+
 function createFilterParameters(filters: DashboardViewFilters): URLSearchParams {
   const parameters = new URLSearchParams({
     bucket: filters.bucket,
@@ -191,7 +197,7 @@ function createFilterParameters(filters: DashboardViewFilters): URLSearchParams 
   setOptionalParameter(parameters, "model", filters.model);
   setOptionalParameter(parameters, "provider", filters.provider);
   setOptionalParameter(parameters, "agentType", filters.agentType);
-  setOptionalParameter(parameters, "agentId", filters.agentId);
+  setOptionalParameter(parameters, "agent", filters.agentKey);
   return parameters;
 }
 

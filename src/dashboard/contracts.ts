@@ -2,7 +2,7 @@ export type BucketSize = "minute" | "hour" | "day" | "week";
 export type TimeseriesResolution = BucketSize | "call";
 
 export interface DashboardFilters {
-  agentId?: string;
+  agentKey?: string;
   agentType?: "main" | "sub" | "unknown";
   bucket: "auto" | BucketSize;
   fromMs?: number;
@@ -67,10 +67,10 @@ export interface SessionRow {
 }
 
 export interface AgentRow {
-  agentId: string;
+  agentKey: string;
+  agentLabel: string;
   agentType: "main" | "sub" | "unknown";
   callCount: number;
-  parentAgentId: string | null;
   totalCostNano: number;
   unpricedCallCount: number;
 }

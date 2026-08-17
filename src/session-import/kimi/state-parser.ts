@@ -13,7 +13,7 @@ export function parseSessionState(
     throw new Error("The Kimi state file must contain a JSON object.");
   }
 
-  const agents = parseAgents(value.agents, defaults.agentDirectories);
+  const agents = parseAgents(value.agents, defaults.agents);
   const createdAtMs = parseTimestamp(value.createdAt) ?? defaults.fallbackTimestampMs;
   const updatedAtMs = parseTimestamp(value.updatedAt) ?? createdAtMs;
 
@@ -27,16 +27,11 @@ export function parseSessionState(
 }
 
 export function createFallbackSessionState(
-  agentDirectories: ReadonlyMap<string, string>,
+  agents: readonly AgentMetadata[],
   timestampMs: number,
 ): ParsedSessionState {
   return {
-    agents: [...agentDirectories].map(([agentId, sourceDirectory]) => ({
-      agentId,
-      agentType: agentId === "main" ? "main" : "unknown",
-      parentAgentId: null,
-      sourceDirectory,
-    })),
+    agents,
     createdAtMs: timestampMs,
     title: null,
     updatedAtMs: timestampMs,
@@ -46,8 +41,9 @@ export function createFallbackSessionState(
 
 function parseAgents(
   value: unknown,
-  agentDirectories: ReadonlyMap<string, string>,
+  discoveredAgents: readonly AgentMetadata[],
 ): readonly AgentMetadata[] {
+  const discoveredById = new Map(discoveredAgents.map((agent) => [agent.agentId, agent]));
   const parsedAgents = new Map<string, AgentMetadata>();
   if (isRecord(value)) {
     for (const [agentId, rawAgent] of Object.entries(value)) {
@@ -57,21 +53,21 @@ function parseAgents(
 
       parsedAgents.set(agentId, {
         agentId,
+        agentKey: discoveredById.get(agentId)?.agentKey ?? agentId,
+        agentLabel: discoveredById.get(agentId)?.agentLabel
+          ?? (agentId === "main" ? "Main" : agentId),
         agentType: parseAgentType(rawAgent.type),
         parentAgentId: optionalString(rawAgent.parentAgentId),
-        sourceDirectory: agentDirectories.get(agentId) ?? optionalString(rawAgent.homedir) ?? "",
+        sourceDirectory: discoveredById.get(agentId)?.sourceDirectory
+          ?? optionalString(rawAgent.homedir)
+          ?? "",
       });
     }
   }
 
-  for (const [agentId, sourceDirectory] of agentDirectories) {
-    if (!parsedAgents.has(agentId)) {
-      parsedAgents.set(agentId, {
-        agentId,
-        agentType: agentId === "main" ? "main" : "unknown",
-        parentAgentId: null,
-        sourceDirectory,
-      });
+  for (const discoveredAgent of discoveredAgents) {
+    if (!parsedAgents.has(discoveredAgent.agentId)) {
+      parsedAgents.set(discoveredAgent.agentId, discoveredAgent);
     }
   }
 

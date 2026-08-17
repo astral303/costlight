@@ -92,15 +92,35 @@ beforeEach(() => {
     if (url.startsWith("/api/models")) {
       return Response.json({ models: [] });
     }
-    if (url === "/api/options") {
+    if (url.startsWith("/api/options")) {
+      const provider = new URL(url, "http://costlight.local").searchParams.get("provider");
+      const isClaudeOnly = provider === "anthropic";
       return Response.json({
-        agents: [],
-        models: [],
+        agents: isClaudeOnly
+          ? [{ label: "Explore", value: "agent:Explore" }]
+          : [
+            { label: "Explore", value: "agent:Explore" },
+            { label: "Main", value: "main" },
+          ],
+        models: isClaudeOnly
+          ? [{ label: "claude-opus-4-1", value: "claude-opus-4-1" }]
+          : [
+            { label: "claude-opus-4-1", value: "claude-opus-4-1" },
+            { label: "moonshot-ai/kimi-k3", value: "moonshot-ai/kimi-k3" },
+          ],
         providers: [
           { label: "Kimi", value: "moonshotai" },
           { label: "Claude", value: "anthropic" },
         ],
-        sessions: [
+        sessions: (isClaudeOnly ? [
+          {
+            label: "Other session",
+            provider: "anthropic",
+            recencyGroup: "2+ days ago",
+            value: "session-2",
+            workspace: "workspace-2",
+          },
+        ] : [
           {
             label: "Test session",
             provider: "moonshotai",
@@ -115,8 +135,10 @@ beforeEach(() => {
             value: "session-2",
             workspace: "workspace-2",
           },
-        ],
-        workspaces: [
+        ]),
+        workspaces: isClaudeOnly ? [
+          { label: "Workspace two", value: "workspace-2" },
+        ] : [
           { label: "Workspace one", value: "workspace-1" },
           { label: "Workspace two", value: "workspace-2" },
         ],
@@ -336,11 +358,19 @@ describe("Dashboard", () => {
     render(<Dashboard />);
     await screen.findAllByText("$1.23");
 
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "moonshot-ai/kimi-k3" },
+    });
+    fireEvent.change(screen.getByLabelText("Agent"), {
+      target: { value: "main" },
+    });
     fireEvent.change(screen.getByLabelText("Provider"), {
       target: { value: "anthropic" },
     });
 
     const sessionSelect = screen.getByLabelText("Session") as HTMLSelectElement;
+    expect((screen.getByLabelText("Model") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("Agent") as HTMLSelectElement).value).toBe("");
     expect([...sessionSelect.options].map((option) => option.text)).toEqual([
       "All",
       "Other session",
@@ -353,6 +383,13 @@ describe("Dashboard", () => {
         .filter((url) => url.startsWith("/api/summary?"))
         .at(-1);
       expect(latestSummaryRequest).toContain("provider=anthropic");
+      expect(requestedUrls).toContain("/api/options?provider=anthropic");
+      expect([...screen.getByLabelText("Workspace").querySelectorAll("option")]
+        .map((option) => option.textContent)).toEqual(["All", "Workspace two"]);
+      expect([...screen.getByLabelText("Model").querySelectorAll("option")]
+        .map((option) => option.textContent)).toEqual(["All", "claude-opus-4-1"]);
+      expect([...screen.getByLabelText("Agent").querySelectorAll("option")]
+        .map((option) => option.textContent)).toEqual(["All", "Explore"]);
     });
   });
 
