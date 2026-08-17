@@ -43,15 +43,27 @@ export interface CatalogRefreshResult {
   status: "failed" | "not-modified" | "refreshed" | "skipped";
 }
 
+export interface PricingRefreshFailure {
+  error: unknown;
+  provider: string;
+  sourceName: string;
+}
+
+export interface PricingCatalogOptions {
+  onRefreshFailure?: (failure: PricingRefreshFailure) => void;
+}
+
 export class PricingCatalog {
   readonly #dataDirectory: string;
   readonly #database: Database;
+  readonly #onRefreshFailure: PricingCatalogOptions["onRefreshFailure"];
   #lastRefreshResults: readonly CatalogRefreshResult[] = [];
   #refreshQueue: Promise<readonly CatalogRefreshResult[]> = Promise.resolve([]);
 
-  constructor(database: Database, dataDirectory: string) {
+  constructor(database: Database, dataDirectory: string, options: PricingCatalogOptions = {}) {
     this.#database = database;
     this.#dataDirectory = dataDirectory;
+    this.#onRefreshFailure = options.onRefreshFailure;
   }
 
   async initialize(): Promise<void> {
@@ -236,6 +248,11 @@ export class PricingCatalog {
         status: "refreshed",
       };
     } catch (error) {
+      this.#onRefreshFailure?.({
+        error,
+        provider: catalog.provider,
+        sourceName: catalog.name,
+      });
       return {
         error: errorMessage(error),
         provider: catalog.provider,
@@ -361,8 +378,16 @@ export class PricingCatalog {
         throw new Error(`Unable to persist ${catalog.name} pricing snapshot.`);
       }
 
-      this.#database.query("DELETE FROM model_rates WHERE snapshot_id = ?").run(snapshotId);
-      this.#insertRates(rates, snapshotId);
+      this.#database.query(`
+        UPDATE model_rates
+        SET is_active = 0
+        WHERE snapshot_id IN (
+          SELECT snapshot_id
+          FROM pricing_snapshots
+          WHERE source_name = ?
+        )
+      `).run(catalog.name);
+      this.#activateOrInsertRates(rates, snapshotId);
     });
     storeSnapshot();
   }
@@ -378,64 +403,78 @@ export class PricingCatalog {
           .query("UPDATE model_rates SET is_active = 0 WHERE snapshot_id IS NULL AND source_name = 'user-override'")
           .run();
       }
-      for (const rate of rates) {
-        const existingRateId = this.#database
-          .query<{ rate_id: number }, [
-            string,
-            string,
-            string | null,
-            number,
-            number,
-            number,
-            number,
-            number,
-            number,
-            string,
-            string,
-            number | null,
-          ]>(`
-            SELECT rate_id
-            FROM model_rates
-            WHERE snapshot_id IS NULL
-              AND provider = ?
-              AND model_key = ?
-              AND raw_alias IS ?
-              AND input_nano_per_token = ?
-              AND output_nano_per_token = ?
-              AND cache_read_nano_per_token = ?
-              AND cache_creation_nano_per_token = ?
-              AND cache_creation_5m_nano_per_token = ?
-              AND cache_creation_1h_nano_per_token = ?
-              AND source_name = ?
-              AND confidence = ?
-              AND effective_at_ms IS ?
-            ORDER BY created_at_ms DESC
-            LIMIT 1
-          `)
-          .get(
-            rate.provider,
-            rate.modelKey,
-            rate.rawAlias,
-            rate.inputNanoPerToken,
-            rate.outputNanoPerToken,
-            rate.cacheReadNanoPerToken,
-            rate.cacheCreationNanoPerToken,
-            rate.cacheCreation5mNanoPerToken,
-            rate.cacheCreation1hNanoPerToken,
-            rate.sourceName,
-            rate.confidence,
-            rate.effectiveAtMs,
-          )?.rate_id;
-        if (existingRateId === undefined) {
-          this.#insertRates([rate], null);
-        } else {
-          this.#database
-            .query("UPDATE model_rates SET is_active = 1 WHERE rate_id = ?")
-            .run(existingRateId);
-        }
-      }
+      this.#activateOrInsertRates(rates, null);
     });
     replaceRates();
+  }
+
+  #activateOrInsertRates(rates: readonly CatalogRate[], snapshotId: number | null): void {
+    const ratesToInsert: CatalogRate[] = [];
+    for (const rate of rates) {
+      const existingRateId = this.#findMatchingRateId(rate, snapshotId);
+      if (existingRateId === undefined) {
+        ratesToInsert.push(rate);
+      } else {
+        this.#database
+          .query("UPDATE model_rates SET is_active = 1 WHERE rate_id = ?")
+          .run(existingRateId);
+      }
+    }
+    if (ratesToInsert.length > 0) {
+      this.#insertRates(ratesToInsert, snapshotId);
+    }
+  }
+
+  #findMatchingRateId(rate: CatalogRate, snapshotId: number | null): number | undefined {
+    return this.#database
+      .query<{ rate_id: number }, [
+        number | null,
+        string,
+        string,
+        string | null,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        string,
+        string,
+        number | null,
+      ]>(`
+        SELECT rate_id
+        FROM model_rates
+        WHERE snapshot_id IS ?
+          AND provider = ?
+          AND model_key = ?
+          AND raw_alias IS ?
+          AND input_nano_per_token = ?
+          AND output_nano_per_token = ?
+          AND cache_read_nano_per_token = ?
+          AND cache_creation_nano_per_token = ?
+          AND cache_creation_5m_nano_per_token = ?
+          AND cache_creation_1h_nano_per_token = ?
+          AND source_name = ?
+          AND confidence = ?
+          AND effective_at_ms IS ?
+        ORDER BY created_at_ms DESC
+        LIMIT 1
+      `)
+      .get(
+        snapshotId,
+        rate.provider,
+        rate.modelKey,
+        rate.rawAlias,
+        rate.inputNanoPerToken,
+        rate.outputNanoPerToken,
+        rate.cacheReadNanoPerToken,
+        rate.cacheCreationNanoPerToken,
+        rate.cacheCreation5mNanoPerToken,
+        rate.cacheCreation1hNanoPerToken,
+        rate.sourceName,
+        rate.confidence,
+        rate.effectiveAtMs,
+      )?.rate_id;
   }
 
   #insertRates(rates: readonly CatalogRate[], snapshotId: number | null): void {

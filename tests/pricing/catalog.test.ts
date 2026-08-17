@@ -215,10 +215,95 @@ describe("PricingCatalog", () => {
     }
   });
 
+  test("preserves historical rate IDs while reconciling remote pricing", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    const originalFetch = globalThis.fetch;
+    let anthropicPricing = anthropicPricingMarkdown();
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      return url.endsWith("pricing.md")
+        ? new Response(anthropicPricing)
+        : Response.json({});
+    }) as unknown as typeof fetch;
+
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+      expect((await catalog.forceRefresh())[0]?.status).toBe("refreshed");
+
+      database.query(`
+        INSERT INTO sessions (session_id, workspace_key, created_at_ms, updated_at_ms, parse_status)
+        VALUES ('remote-session', 'workspace', 1, 1, 'ok')
+      `).run();
+      database.query(`
+        INSERT INTO agents (session_id, agent_id, agent_type, source_directory)
+        VALUES ('remote-session', 'main', 'main', 'wire')
+      `).run();
+      database.query(`
+        INSERT INTO source_files (path, source_root, session_id, agent_id)
+        VALUES ('remote-wire', 'root', 'remote-session', 'main')
+      `).run();
+      const ledger = new CallLedger(database, catalog);
+      ledger.recordUsage({
+        agentId: "main",
+        generation: 0,
+        sessionId: "remote-session",
+        sourcePath: "remote-wire",
+      }, {
+        byteOffset: 1,
+        model: "claude-fable-5",
+        providerRequestId: "historical-remote-rate",
+        requestMetadata: null,
+        stepUuid: "historical-remote-rate-step",
+        timestampMs: 1,
+        tokens: {
+          cacheCreation: 0,
+          cacheCreation1h: 0,
+          cacheCreation5m: 0,
+          cacheRead: 0,
+          inputOther: 1,
+          output: 1,
+        },
+      });
+      const historicalCall = database.query<{
+        rate_id: number;
+        total_cost_nano: number;
+      }, []>("SELECT rate_id, total_cost_nano FROM api_calls").get();
+      if (historicalCall === null) {
+        throw new Error("Expected the historical call to be priced.");
+      }
+
+      expect((await catalog.forceRefresh())[0]?.status).toBe("refreshed");
+      expect(catalog.resolve("claude-fable-5", 1)?.rateId).toBe(historicalCall.rate_id);
+
+      anthropicPricing = anthropicPricingMarkdown(11);
+      expect((await catalog.forceRefresh())[0]?.status).toBe("refreshed");
+      const currentRate = catalog.resolve("claude-fable-5", 1);
+      expect(currentRate).toMatchObject({ inputNanoPerToken: 11_000 });
+      expect(currentRate?.rateId).not.toBe(historicalCall.rate_id);
+      expect(database.query<{ is_active: number; input_nano_per_token: number }, [number]>(`
+        SELECT is_active, input_nano_per_token
+        FROM model_rates
+        WHERE rate_id = ?
+      `).get(historicalCall.rate_id)).toEqual({
+        input_nano_per_token: 10_000,
+        is_active: 0,
+      });
+      expect(database.query<{ rate_id: number; total_cost_nano: number }, []>(
+        "SELECT rate_id, total_cost_nano FROM api_calls",
+      ).get()).toEqual(historicalCall);
+    } finally {
+      globalThis.fetch = originalFetch;
+      database.close();
+    }
+  });
+
   test("reports partial provider failure without discarding successful sources", async () => {
     const dataDirectory = await createTemporaryDirectory();
     const database = openDashboardDatabase(":memory:");
     const originalFetch = globalThis.fetch;
+    const reportedFailures: { provider: string; sourceName: string }[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("pricing.md")) {
@@ -236,7 +321,11 @@ describe("PricingCatalog", () => {
     }) as unknown as typeof fetch;
 
     try {
-      const catalog = new PricingCatalog(database, dataDirectory);
+      const catalog = new PricingCatalog(database, dataDirectory, {
+        onRefreshFailure: ({ provider, sourceName }) => {
+          reportedFailures.push({ provider, sourceName });
+        },
+      });
       await catalog.initialize();
       const results = await catalog.forceRefresh();
 
@@ -253,6 +342,7 @@ describe("PricingCatalog", () => {
       });
       expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken)
         .toBe(3_000);
+      expect(reportedFailures).toEqual([{ provider: "moonshotai", sourceName: "models.dev" }]);
     } finally {
       globalThis.fetch = originalFetch;
       database.close();
@@ -320,10 +410,10 @@ async function createTemporaryDirectory(): Promise<string> {
   return directory;
 }
 
-function anthropicPricingMarkdown(): string {
+function anthropicPricingMarkdown(inputPrice = 10): string {
   return `
 | Model | Base Input Tokens | 5m Cache Writes | 1h Cache Writes | Cache Hits & Refreshes | Output Tokens |
 |---|---:|---:|---:|---:|---:|
-| Claude Fable 5 | $10 / MTok | $12.50 / MTok | $20 / MTok | $1 / MTok | $50 / MTok |
+| Claude Fable 5 | $${inputPrice} / MTok | $12.50 / MTok | $20 / MTok | $1 / MTok | $50 / MTok |
 `;
 }
