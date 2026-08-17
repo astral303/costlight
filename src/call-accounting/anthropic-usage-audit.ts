@@ -7,6 +7,7 @@ import {
 } from "../metered-usage/claude-account-policy";
 import { modelKeyFromRawModel } from "../pricing/anthropic-catalog";
 import type { AnthropicUsageReport, UsageDayTotals, UsageTotals } from "./anthropic-usage-report";
+import { csvField, csvText } from "./csv";
 
 const ANTHROPIC_PROVIDER = "anthropic";
 const NANO_PER_USD = 1_000_000_000;
@@ -379,10 +380,3 @@ function keyFields(row: UsageComparisonRow): readonly string[] {
   return [csvField(row.date), csvField(row.modelKey)];
 }
 
-function csvText(lines: readonly string[]): string {
-  return `${lines.join("\n")}\n`;
-}
-
-function csvField(value: string): string {
-  return /["\n,]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-}

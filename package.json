@@ -10,6 +10,7 @@
     "analyze-cache": "bun src/cache-analysis/run.ts",
     "audit": "bun src/app/audit.ts",
     "audit:claude-usage": "bun src/app/audit-claude-usage.ts",
+    "diagnose:claude-usage": "bun src/usage-diagnostics/run.ts",
     "reprice": "bun src/app/reprice-history.ts",
     "check:packages": "eslint package.json",
     "check": "bunx --bun tsc --noEmit",

@@ -68,6 +68,7 @@ Official provider billing exports remain the authority for reconciliation.
 | `bun run reprice` | Explicitly refresh rates and recalculate all historical calls |
 | `bun run audit` | Compare Kimi and Claude totals with ccusage through Bun's package runner |
 | `bun run audit:claude-usage` | Compare Claude totals with a usage export downloaded from Anthropic |
+| `bun run diagnose:claude-usage` | Break a Claude usage shortfall down by replay, session, hour, or marker |
 
 All JavaScript and TypeScript executables run through the mise-pinned Bun toolchain. `bun.lock` and `mise.lock` pin the resolved dependencies and Bun artifacts.
 
@@ -308,3 +309,22 @@ The `long` layout writes three rows per day and model — `anthropic`, `costligh
 The export must be the daily model-tier report in USD; another grouping is rejected rather than compared against mismatched buckets. Anthropic buckets it server-side, so a deviation pattern that shifts consistently by one day means `--timezone` needs the zone the account is billed in.
 
 Two summary fields report gaps that no single day exposes: `unmeteredCallCount` counts Claude calls the account policy did not meter, and `unpricedCallCount` counts metered calls no rate could price. On an Enterprise account both should be zero, because every call is billed. Metering is filtered per call here rather than per model, so unlike the ccusage audit a policy change inside the range stays correctly split.
+
+### Diagnosing a usage shortfall
+
+When the audit reports a gap, `bun run diagnose:claude-usage` breaks it down. Each mode writes one CSV table to stdout and progress to stderr, so the output pipes straight into a CSV tool:
+
+```powershell
+bun run diagnose:claude-usage --mode aborts
+```
+
+| Mode | Scope | Answers |
+|---|---|---|
+| `replays` (default) | `--from`, `--to`, default the trailing 30 days | Did deduplication drop occurrences the export still billed? |
+| `sessions` | `--day` | Did any session lose records locally, shown as extra roots, a dangling parent, or a malformed line? |
+| `hourly` | `--day` | Is the shortfall spread through the day or concentrated in one stretch? |
+| `aborts` | whole history | How many turns were interrupted or failed, against the calls actually recorded? |
+
+`replays` reads the ledger; the other three read the transcripts through the importer's own discovery and parser, so they always cover the same files the ledger was built from, sub-agent transcripts included. In `aborts`, `distinct_requests` is the number comparable to the audit's `costlight` request count, because resumed sessions copy earlier turns forward and only distinct request ids are distinct API calls. `streaming_snapshot` counts partial snapshots rather than abandoned turns: it tracks the ledger's superseded occurrences, not the shortfall.
+
+A residual shortfall can survive all of those checks, because the two sides count different events. Costlight records a call when Claude Code writes an assistant message carrying token usage; Anthropic bills a request when it is dispatched. A request that is billed but never finalizes such a message — a cancelled turn, a model-switch probe, an error after the prompt was already processed — leaves no transcript record at all, so it lands permanently on the export side of the deviation. These rows read as full input and cache-read tokens against little or no output, and they inflate the request gap more than the cost gap because zero-cost requests still count. Any tool that reads transcripts, ccusage included, is blind to them in the same way.

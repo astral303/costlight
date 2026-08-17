@@ -8,6 +8,10 @@ import { assertValidTimeZone } from "../dashboard/bucketing";
 const DEFAULT_PORT = 4637;
 // Anthropic's web UI buckets the usage export server-side, so its days are not the local ones.
 const DEFAULT_USAGE_REPORT_TIME_ZONE = "UTC";
+const DEFAULT_DIAGNOSTICS_RANGE_DAYS = 30;
+const MS_PER_DAY = 86_400_000;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const USAGE_DIAGNOSTICS_MODES = ["aborts", "hourly", "replays", "sessions"] as const;
 
 const runtimeOptionsSchema = z.object({
   dataDirectory: z.string().min(1),
@@ -159,6 +163,94 @@ function parseCsvLayout(value: string): CsvLayout {
   }
 
   return value;
+}
+
+export type UsageDiagnosticsMode = (typeof USAGE_DIAGNOSTICS_MODES)[number];
+
+/** Each mode carries only the scope it reads, so no caller has to re-check which flags applied. */
+export type UsageDiagnosticsArguments = { runtimeArguments: readonly string[] } & (
+  | { day: string; mode: "hourly" | "sessions" }
+  | { fromDate: string; mode: "replays"; toDate: string }
+  | { mode: "aborts" }
+);
+
+/**
+ * Splits the diagnostics options out of the command line and passes everything else through to
+ * `parseRuntimeOptions`, so the shared runtime options carry no diagnostics-only flags.
+ */
+export function parseUsageDiagnosticsArguments(
+  arguments_: readonly string[] = Bun.argv.slice(2),
+  today: Date = new Date(),
+): UsageDiagnosticsArguments {
+  const runtimeArguments: string[] = [];
+  let day: string | undefined;
+  let fromDate: string | undefined;
+  let mode: UsageDiagnosticsMode = "replays";
+  let toDate: string | undefined;
+
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (argument === undefined) {
+      continue;
+    }
+
+    switch (argument) {
+      case "--day":
+        day = parseIsoDate(requireOptionValue(arguments_, ++index, argument), argument);
+        break;
+      case "--from":
+        fromDate = parseIsoDate(requireOptionValue(arguments_, ++index, argument), argument);
+        break;
+      case "--mode":
+        mode = parseUsageDiagnosticsMode(requireOptionValue(arguments_, ++index, argument));
+        break;
+      case "--to":
+        toDate = parseIsoDate(requireOptionValue(arguments_, ++index, argument), argument);
+        break;
+      default:
+        runtimeArguments.push(argument);
+    }
+  }
+
+  if (mode === "aborts") {
+    return { mode, runtimeArguments };
+  }
+  if (mode === "replays") {
+    return {
+      fromDate: fromDate
+        ?? utcDate(today.getTime() - (DEFAULT_DIAGNOSTICS_RANGE_DAYS - 1) * MS_PER_DAY),
+      mode,
+      runtimeArguments,
+      toDate: toDate ?? utcDate(today.getTime()),
+    };
+  }
+  if (day === undefined) {
+    throw new Error(`--mode ${mode} requires --day <YYYY-MM-DD>.`);
+  }
+
+  return { day, mode, runtimeArguments };
+}
+
+function parseUsageDiagnosticsMode(value: string): UsageDiagnosticsMode {
+  const mode = USAGE_DIAGNOSTICS_MODES.find((candidate) => candidate === value);
+  if (mode === undefined) {
+    throw new Error(`--mode accepts ${USAGE_DIAGNOSTICS_MODES.join(", ")}, not ${value}.`);
+  }
+
+  return mode;
+}
+
+/** Days are compared as text against SQLite's `date()` output, so the shape has to be exact. */
+function parseIsoDate(value: string, optionName: string): string {
+  if (!ISO_DATE_PATTERN.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+    throw new Error(`${optionName} requires a YYYY-MM-DD date, not ${value}.`);
+  }
+
+  return value;
+}
+
+function utcDate(timestampMs: number): string {
+  return new Date(timestampMs).toISOString().slice(0, 10);
 }
 
 export function isLoopbackHost(host: string): boolean {

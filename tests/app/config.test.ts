@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   parseClaudeUsageAuditArguments,
   parseRuntimeOptions,
+  parseUsageDiagnosticsArguments,
   selectCompatibleDataDirectory,
 } from "../../src/app/config";
 
@@ -100,5 +101,37 @@ describe("parseClaudeUsageAuditArguments", () => {
       .toThrow("--layout accepts long or wide, not tall.");
     expect(() => parseClaudeUsageAuditArguments(["--report", "usage.json", "--timezone", "Mars"]))
       .toThrow("Invalid time zone: Mars");
+  });
+});
+
+describe("parseUsageDiagnosticsArguments", () => {
+  const today = new Date("2026-08-17T12:00:00Z");
+
+  test("defaults to the replay summary over the trailing thirty days", () => {
+    const diagnostics = parseUsageDiagnosticsArguments(["--data-dir", "C:\\synthetic-data"], today);
+
+    expect(diagnostics.mode).toBe("replays");
+    expect(diagnostics).toMatchObject({ fromDate: "2026-07-19", toDate: "2026-08-17" });
+    expect(diagnostics.runtimeArguments).toEqual(["--data-dir", "C:\\synthetic-data"]);
+  });
+
+  test("carries only the scope its mode reads", () => {
+    const sessions = parseUsageDiagnosticsArguments(
+      ["--mode", "sessions", "--day", "2026-08-03"],
+      today,
+    );
+    const aborts = parseUsageDiagnosticsArguments(["--mode", "aborts"], today);
+
+    expect(sessions).toEqual({ day: "2026-08-03", mode: "sessions", runtimeArguments: [] });
+    expect(aborts).toEqual({ mode: "aborts", runtimeArguments: [] });
+  });
+
+  test("rejects an unknown mode, a day-scoped mode with no day and a malformed date", () => {
+    expect(() => parseUsageDiagnosticsArguments(["--mode", "guess"], today))
+      .toThrow("--mode accepts aborts, hourly, replays, sessions, not guess.");
+    expect(() => parseUsageDiagnosticsArguments(["--mode", "hourly"], today))
+      .toThrow("--mode hourly requires --day <YYYY-MM-DD>.");
+    expect(() => parseUsageDiagnosticsArguments(["--from", "08/03/2026"], today))
+      .toThrow("--from requires a YYYY-MM-DD date, not 08/03/2026.");
   });
 });
