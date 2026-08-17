@@ -2,6 +2,7 @@ import { basename, extname, relative, resolve, sep } from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { CallLedger } from "../call-accounting/ledger";
 import { handleDashboardRoute } from "../dashboard/routes";
+import { RotatingErrorLog, type ErrorLogContext } from "../error-logging/rotating-error-log";
 import { LiveUpdateHub } from "../live-sync/hub";
 import { handleLiveRoute } from "../live-sync/routes";
 import { MeteredUsageService } from "../metered-usage/service";
@@ -21,9 +22,14 @@ import { registerTerminalExitShortcut } from "./terminal-exit";
 const PRICING_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 const startedAtMs = Date.now();
 const options = parseRuntimeOptions();
+const errorLog = new RotatingErrorLog(options.dataDirectory);
 const database = openDashboardDatabase(options.databasePath);
 const hub = new LiveUpdateHub();
-const pricingCatalog = new PricingCatalog(database, options.dataDirectory);
+const pricingCatalog = new PricingCatalog(database, options.dataDirectory, {
+  onRefreshFailure: ({ error, provider, sourceName }) => {
+    reportError("pricing.refresh.failed", error, { provider, sourceName });
+  },
+});
 await pricingCatalog.initialize();
 await pricingCatalog.refreshIfStale();
 const meteredUsage = new MeteredUsageService(database, {
@@ -99,7 +105,7 @@ function requestShutdown(): void {
   void shutdownRequest.then(
     () => console.log("Costlight stopped."),
     (error) => {
-      console.error(`Shutdown failed: ${errorMessage(error)}`);
+      reportError("server.shutdown.failed", error);
       process.exitCode = 1;
     },
   );
@@ -109,8 +115,10 @@ process.once("SIGINT", requestShutdown);
 process.once("SIGTERM", requestShutdown);
 
 async function handleRequest(request: Request): Promise<Response> {
+  let requestPath = "unknown";
   try {
     const url = new URL(request.url);
+    requestPath = url.pathname;
     if (!isAuthorized(request)) {
       return withSecurityHeaders(Response.json(
         { error: "Unauthorized" },
@@ -135,7 +143,10 @@ async function handleRequest(request: Request): Promise<Response> {
       ?? await serveDashboardAsset(url);
     return withSecurityHeaders(response);
   } catch (error) {
-    console.error(`Request failed: ${errorMessage(error)}`);
+    reportError("http.request.failed", error, {
+      method: request.method,
+      path: requestPath,
+    });
     return withSecurityHeaders(Response.json({ error: "Internal server error" }, { status: 500 }));
   }
 }
@@ -228,4 +239,9 @@ function withSecurityHeaders(response: Response): Response {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function reportError(event: string, error: unknown, context: ErrorLogContext = {}): void {
+  console.error(`[${event}] ${errorMessage(error)}`);
+  errorLog.writeError(event, error, context);
 }
