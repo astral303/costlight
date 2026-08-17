@@ -122,7 +122,9 @@ Default application-data directories are:
 
 Costlight follows the XDG data-directory convention on Unix. It does not use `XDG_CACHE_HOME` because the SQLite ledger and historical price assignments are persistent application data, not disposable cache files.
 
-The application-data directory contains `dashboard.sqlite` and downloaded pricing catalogs.
+The application-data directory contains `dashboard.sqlite`, downloaded pricing catalogs, and a `logs/` subdirectory.
+
+Structured errors are written to `logs/costlight.log`, rotated at 5 MiB, and retained in up to five numbered archives. Logs remain local and do not include transcript content.
 
 Existing installations automatically reuse their pre-Costlight data directory when no Costlight directory exists. Use `--data-dir <path>` to choose another location. Costlight never writes inside a Kimi data root.
 
@@ -231,7 +233,7 @@ Explicit actions:
 - `POST /api/pricing/refresh`
 - `POST /api/pricing/reprice`
 
-Summary, timeseries, session, and model endpoints accept the same `from`, `to`, `provider`, `workspace`, `session`, `model`, `agentType`, `agentId`, `bucket`, and `timeZone` filters.
+Summary, timeseries, session, and model endpoints accept the same `from`, `to`, `provider`, `workspace`, `session`, `model`, `agentType`, `agent`, `bucket`, and `timeZone` filters. The options endpoint accepts `provider` to return matching workspace, session, model, and stable agent-role choices.
 
 ## Feature-grouped layout
 
