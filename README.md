@@ -67,6 +67,7 @@ Official provider billing exports remain the authority for reconciliation.
 | `mise run analyze-cache` | Infer the Kimi cache inactivity window from all local wire logs |
 | `bun run reprice` | Explicitly refresh rates and recalculate all historical calls |
 | `bun run audit` | Compare Kimi and Claude totals with ccusage through Bun's package runner |
+| `bun run audit:claude-usage` | Compare Claude totals with a usage export downloaded from Anthropic |
 
 All JavaScript and TypeScript executables run through the mise-pinned Bun toolchain. `bun.lock` and `mise.lock` pin the resolved dependencies and Bun artifacts.
 
@@ -260,7 +261,7 @@ src/
 mise run verify
 ```
 
-The suite covers Kimi and Claude parsing, account-policy boundaries, append checkpoints, zero-byte unchanged reconciliation, partial JSON, concurrent appends, rewrites, source deletion, new subagents, progressive usage snapshots, fork deduplication, canonical reassignment, historical rate preservation, official and offline pricing, timezone/DST buckets, metered-only report reconciliation, filter propagation, and SSE-triggered refresh.
+The suite covers Kimi and Claude parsing, account-policy boundaries, append checkpoints, zero-byte unchanged reconciliation, partial JSON, concurrent appends, rewrites, source deletion, new subagents, progressive usage snapshots, fork deduplication, canonical reassignment, historical rate preservation, official and offline pricing, timezone/DST buckets, metered-only report reconciliation, usage-export deviations, filter propagation, and SSE-triggered refresh.
 
 The optional ccusage audit never runs during normal ingestion:
 
@@ -284,3 +285,23 @@ One provider's failure never suppresses the other's numbers; `bun run audit` exi
 `--mode calculate` makes ccusage recompute Claude costs from tokens instead of reusing the `costUSD` value Claude Code wrote into the transcript, so the comparison comes from two independent price calculations rather than one shared figure.
 
 The Claude comparison is metered-only on both sides. `ccusage claude daily` totals every Claude model, while Costlight applies the account policy above, so the audit sums only the `modelBreakdowns` whose model the ledger metered — on Pro that is Fable alone, excluding Haiku and Opus usage covered by the subscription. The compared set is listed under `meteredModels` and the remaining Claude models under `unmeteredModels`, by name only: subscription-covered spend is not what this audit measures. Model-level filtering cannot split a day whose account policy changed mid-history, such as Pro to Enterprise, because ccusage's breakdown carries no metering dimension.
+
+### Auditing Claude against Anthropic's usage export
+
+ccusage reads the same transcripts Costlight does, so it cannot explain a gap against the invoice. This audit compares the ledger with the daily usage export downloaded from Anthropic's web UI, which is what the account was actually billed:
+
+```powershell
+bun run audit:claude-usage --report claude_usage_by_model.json
+```
+
+| Option | Default | Purpose |
+|---|---|---|
+| `--report <file>` | required | The usage export downloaded from Anthropic |
+| `--csv <file>` | `claude-usage-deviations.csv` in the data directory | Where the per-day deviations are written |
+| `--timezone <zone>` | `UTC` | The zone that assigns each ledger call to an export day |
+
+Totals print to stdout; every day-and-model deviation goes to the CSV, which carries three rows per day and model — `anthropic`, `costlight`, and their `difference` — with cost, request count, and each token class. A shortfall in tokens points at calls Costlight never recorded, while matching tokens under a cost gap points at rates. Anthropic reports whole cents per day and model, so each row's cost is exact only to half a cent.
+
+The export must be the daily model-tier report in USD; another grouping is rejected rather than compared against mismatched buckets. Anthropic buckets it server-side, so a deviation pattern that shifts consistently by one day means `--timezone` needs the zone the account is billed in.
+
+Two summary fields report gaps that no single day exposes: `unmeteredCallCount` counts Claude calls the account policy did not meter, and `unpricedCallCount` counts metered calls no rate could price. On an Enterprise account both should be zero, because every call is billed. Metering is filtered per call here rather than per model, so unlike the ccusage audit a policy change inside the range stays correctly split.

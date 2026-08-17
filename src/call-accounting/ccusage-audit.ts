@@ -1,6 +1,9 @@
 import type { Database } from "bun:sqlite";
-import { MeteredUsageService } from "../metered-usage/service";
-import { isProMeteredClaudeModel, modelKeyFromRawModel } from "../pricing/anthropic-catalog";
+import {
+  describeUnmeteredAccount,
+  readClaudeAccountPolicy,
+} from "../metered-usage/claude-account-policy";
+import { modelKeyFromRawModel } from "../pricing/anthropic-catalog";
 
 const ANTHROPIC_PROVIDER = "anthropic";
 const KIMI_PROVIDER = "moonshotai";
@@ -82,13 +85,7 @@ export async function auditClaudeWithCcusage(
   const account = readClaudeAccountPolicy(database);
   const meteredModels = queryMeteredClaudeModelKeys(database);
   if (meteredModels.size === 0) {
-    return {
-      ...account,
-      reason: `Claude calls exist but the ${
-        account.meteringPolicy ?? "undetected"
-      } account policy meters none of them.`,
-      status: "nothing-metered",
-    };
+    return { ...account, reason: describeUnmeteredAccount(account), status: "nothing-metered" };
   }
 
   // Only the ccusage call and its parsing belong in the try: a failing local query is a defect,
@@ -246,16 +243,6 @@ function countProviderCalls(database: Database, provider: string): number {
       "SELECT COUNT(*) AS call_count FROM api_calls WHERE provider = ?",
     )
     .get(provider)?.call_count ?? 0;
-}
-
-function readClaudeAccountPolicy(
-  database: Database,
-): { meteringPolicy: string | null; subscriptionType: string | null } {
-  const status = new MeteredUsageService(database, {
-    isProMeteredModel: isProMeteredClaudeModel,
-  }).getClaudeStatus();
-
-  return { meteringPolicy: status.policy, subscriptionType: status.subscriptionType };
 }
 
 function compareTotals(totals: MeteredAuditTotals, ccusageTotalUsd: number): CcusageAuditResult {

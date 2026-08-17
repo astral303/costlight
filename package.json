@@ -9,6 +9,7 @@
     "import": "bun src/app/import-history.ts",
     "analyze-cache": "bun src/cache-analysis/run.ts",
     "audit": "bun src/app/audit.ts",
+    "audit:claude-usage": "bun src/app/audit-claude-usage.ts",
     "reprice": "bun src/app/reprice-history.ts",
     "check:packages": "eslint package.json",
     "check": "bunx --bun tsc --noEmit",

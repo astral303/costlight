@@ -2,8 +2,11 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
+import { assertValidTimeZone } from "../dashboard/bucketing";
 
 const DEFAULT_PORT = 4637;
+// Anthropic's web UI buckets the usage export server-side, so its days are not the local ones.
+const DEFAULT_USAGE_REPORT_TIME_ZONE = "UTC";
 
 const runtimeOptionsSchema = z.object({
   dataDirectory: z.string().min(1),
@@ -95,6 +98,53 @@ export function parseRuntimeOptions(
   }
 
   return parsedOptions;
+}
+
+export interface ClaudeUsageAuditArguments {
+  csvPath: string | undefined;
+  reportPath: string;
+  runtimeArguments: readonly string[];
+  timeZone: string;
+}
+
+/**
+ * Splits the usage-audit options out of the command line and passes everything else through to
+ * `parseRuntimeOptions`, so the shared runtime options carry no audit-only flags.
+ */
+export function parseClaudeUsageAuditArguments(
+  arguments_: readonly string[] = Bun.argv.slice(2),
+): ClaudeUsageAuditArguments {
+  const runtimeArguments: string[] = [];
+  let csvPath: string | undefined;
+  let reportPath: string | undefined;
+  let timeZone = DEFAULT_USAGE_REPORT_TIME_ZONE;
+
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const argument = arguments_[index];
+    if (argument === undefined) {
+      continue;
+    }
+
+    switch (argument) {
+      case "--csv":
+        csvPath = requireOptionValue(arguments_, ++index, argument);
+        break;
+      case "--report":
+        reportPath = requireOptionValue(arguments_, ++index, argument);
+        break;
+      case "--timezone":
+        timeZone = assertValidTimeZone(requireOptionValue(arguments_, ++index, argument));
+        break;
+      default:
+        runtimeArguments.push(argument);
+    }
+  }
+
+  if (reportPath === undefined) {
+    throw new Error("--report requires the usage export downloaded from Anthropic's web UI.");
+  }
+
+  return { csvPath, reportPath, runtimeArguments, timeZone };
 }
 
 export function isLoopbackHost(host: string): boolean {

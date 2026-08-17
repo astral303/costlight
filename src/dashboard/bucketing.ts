@@ -48,6 +48,11 @@ export function bucketTimestampMs(
   return zonedDateTimeToUtcMs(localDate.year, localDate.month, localDate.day, timeZone);
 }
 
+export function zonedDayKey(timestampMs: number, timeZone: string): string {
+  const { day, month, year } = zonedDateParts(timestampMs, timeZone);
+  return `${year}-${twoDigits(month)}-${twoDigits(day)}`;
+}
+
 export function assertValidTimeZone(timeZone: string): string {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone }).format(0);
@@ -115,6 +120,10 @@ function zonedDateTimeToUtcMs(
     }
   }
   return guess;
+}
+
+function twoDigits(value: number): string {
+  return String(value).padStart(2, "0");
 }
 
 function getFormatter(timeZone: string): Intl.DateTimeFormat {

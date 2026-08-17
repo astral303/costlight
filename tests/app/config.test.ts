@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { parseRuntimeOptions, selectCompatibleDataDirectory } from "../../src/app/config";
+import {
+  parseClaudeUsageAuditArguments,
+  parseRuntimeOptions,
+  selectCompatibleDataDirectory,
+} from "../../src/app/config";
 
 const environment = {
   LOCALAPPDATA: "C:\\synthetic-app-data",
@@ -53,5 +57,42 @@ describe("parseRuntimeOptions", () => {
     );
 
     expect(selectedDirectory).toContain("PreviousName");
+  });
+});
+
+describe("parseClaudeUsageAuditArguments", () => {
+  test("keeps runtime options for the shared parser and defaults the export time zone", () => {
+    const auditArguments = parseClaudeUsageAuditArguments([
+      "--report",
+      "usage.json",
+      "--data-dir",
+      "C:\\synthetic-data",
+    ]);
+
+    expect(auditArguments.reportPath).toBe("usage.json");
+    expect(auditArguments.csvPath).toBeUndefined();
+    expect(auditArguments.timeZone).toBe("UTC");
+    expect(auditArguments.runtimeArguments).toEqual(["--data-dir", "C:\\synthetic-data"]);
+  });
+
+  test("accepts an explicit deviation file and time zone", () => {
+    const auditArguments = parseClaudeUsageAuditArguments([
+      "--csv",
+      "deviations.csv",
+      "--report",
+      "usage.json",
+      "--timezone",
+      "America/New_York",
+    ]);
+
+    expect(auditArguments.csvPath).toBe("deviations.csv");
+    expect(auditArguments.timeZone).toBe("America/New_York");
+    expect(auditArguments.runtimeArguments).toEqual([]);
+  });
+
+  test("rejects a missing export and an unusable time zone", () => {
+    expect(() => parseClaudeUsageAuditArguments([])).toThrow("--report requires the usage export");
+    expect(() => parseClaudeUsageAuditArguments(["--report", "usage.json", "--timezone", "Mars"]))
+      .toThrow("Invalid time zone: Mars");
   });
 });
