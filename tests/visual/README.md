@@ -21,9 +21,17 @@ bun run test:visual:update    # accept the current rendering as the new baseline
 4. `compare-to-baseline.ts` diffs it against `__baselines__/` with pixelmatch.
 
 Chromium is driven through its `--screenshot` flag rather than an automation library
-because Playwright's launch handshake, over both a pipe and a debugging port, does not
-complete under Bun on Windows. `--virtual-time-budget` gives layout, image decoding and
-web fonts a virtual clock to settle on, which is what makes repeat runs identical.
+because `chromium.launch()` times out under Bun on Windows: writes to extra stdio pipes
+(fd 3+) are dropped there, and Playwright carries CDP over fd 3 via
+`--remote-debugging-pipe`. See [oven-sh/bun#27977][bun-issue], fixed by
+[oven-sh/bun#31829][bun-fix] but not yet in a release as of Bun 1.3.14. Worth re-testing
+Playwright once that ships, since it would bring element clipping and font-ready waits.
+
+`--virtual-time-budget` gives layout, image decoding and web fonts a virtual clock to
+settle on, which is what makes repeat runs identical.
+
+[bun-issue]: https://github.com/oven-sh/bun/issues/27977
+[bun-fix]: https://github.com/oven-sh/bun/pull/31829
 
 ## Keeping captures deterministic
 
