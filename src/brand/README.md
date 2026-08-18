@@ -14,8 +14,24 @@ black, which is what lets `mix-blend-mode: screen` erase the background in the h
 ```sh
 magick "$SRC" -crop 1040x678+26+40   +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-wordmark.webp
 magick "$SRC" -crop  528x678+1520+40 +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-beacon.webp
-magick "$SRC" -crop  320x340+2+40    +repage -background black -gravity center -extent 360x360 \
-        -level 3%,100% -resize 256x256 -strip costlight-icon.png
+magick "$SRC" -crop  240x316+60+50 +repage -level 3%,100% -background black \
+        -gravity center -extent 336x336 icon-square.png
+magick icon-square.png -filter Lanczos -resize 256x256 -strip costlight-icon.png
+```
+
+The icon crop stops at `x 300` because the crescent's tip ends around `x 281` and the
+`o` of `ostlight` starts around `x 306`. Cutting any wider leaves a stray blue sliver
+that reads as a glitch once the icon is scaled down.
+
+`costlight-favicon.ico` packs 16, 32 and 48px. Each is resized and sharpened from
+`icon-square.png` at its own scale rather than downsampled from one bitmap, because the
+lighthouse tower is thin enough to disappear otherwise:
+
+```sh
+for S in 16 32 48; do
+  magick icon-square.png -filter Lanczos -resize ${S}x${S} -unsharp 0x0.6+0.7+0.02 ico-$S.png
+done
+magick ico-16.png ico-32.png ico-48.png costlight-favicon.ico
 ```
 
 ## Numbers `dashboard.css` depends on
