@@ -53,6 +53,26 @@
   pointer-events: none;
 }
 
+/* The header is roughly aspect 8, the artwork crops roughly aspect 1.5, so placing them
+   at their own proportions covers about a third of the width and leaves the rest empty.
+   This runs the waterline the whole way across, giving the two crops something to sit on
+   instead of ending as rectangles in open space. Its horizon is cut to the same 46% the
+   scene uses, and its own blue-to-gold falloff happens to match their placement.
+   `z-index` keeps it under both, since a child would otherwise paint over `::before`. */
+.dashboard-header__water {
+  position: absolute;
+  z-index: -1;
+  /* Runs past the shell's gutters so the plane does not stop on a vertical line
+     inside the visible area. */
+  inset: 0 -24px;
+  background: url("../brand/costlight-water.webp") left top / 100% 100% no-repeat;
+  mix-blend-mode: screen;
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 97%, transparent 100%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 97%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
 .dashboard-header__scene::before,
 .dashboard-header__scene::after {
   position: absolute;
@@ -70,8 +90,8 @@
   background-image: url("../brand/costlight-wordmark.webp");
   /* Holds to 96%, where the trailing water glow past the final `t` actually ends.
      Fading sooner cut through reflections the render still had running. */
-  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 96%, transparent 100%);
-  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 96%, transparent 100%);
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 4% 90%, transparent 100%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 4% 90%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }
@@ -83,8 +103,8 @@
   right: 0;
   width: calc(var(--costlight-scene-height) * var(--costlight-beacon-aspect));
   background-image: url("../brand/costlight-beacon.webp");
-  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 4% 93%, transparent 100%);
-  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 4% 93%, transparent 100%);
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 14% 94%, transparent 100%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 14% 94%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }

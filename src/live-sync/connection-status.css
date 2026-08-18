@@ -15,9 +15,12 @@
   background: #65d6ad;
 }
 
+/* In the dashboard header this sits over the lit water behind it, so both lines
+   carry their own separation rather than relying on the backdrop staying dark. */
 .connection-status strong,
 .connection-status small {
   display: block;
+  text-shadow: 0 1px 3px rgb(4 8 14 / 85%);
 }
 
 .connection-status strong {
