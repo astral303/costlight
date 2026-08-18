@@ -68,5 +68,14 @@ Only the 1280px capture caught that regression, because the reflection reaches t
 below the header at that width and not at the narrower ones. Adding a width adds
 coverage; it does not duplicate it.
 
+Captures usually take about two seconds but have been seen to reach seven on a loaded
+machine, which overran Bun's default five-second per-test timeout. That surfaced as a
+bare failure with no diff attached, easily mistaken for a real pixel change until the
+elapsed time in the report gives it away. Each capture now carries an explicit 60s
+timeout.
+
+If a failure ever reports no changed-pixel count, read the elapsed time before assuming
+anything rendered differently.
+
 Failure artifacts land in `__failures__/` as `.actual.png` and `.diff.png`, and are
 ignored by git.

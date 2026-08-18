@@ -49,7 +49,10 @@ export function captureScreenshot({
       "--allow-file-access-from-files",
       // Lets layout, image decoding and web fonts settle on a virtual clock, so the
       // capture does not race real wall-clock loading.
-      "--virtual-time-budget=4000",
+      "--virtual-time-budget=8000",
+      // Without this a loaded machine can capture a partially composited frame, which
+      // shows up as an unrepeatable diff rather than an obvious failure.
+      "--run-all-compositor-stages-before-draw",
       `--window-size=${width},${height}`,
       `--screenshot=${imagePath}`,
       `file:///${pagePath.replaceAll("\\", "/")}`,
