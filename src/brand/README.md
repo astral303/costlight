@@ -14,14 +14,21 @@ black, which is what lets `mix-blend-mode: screen` erase the background in the h
 ```sh
 magick "$SRC" -crop 1040x678+26+40   +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-wordmark.webp
 magick "$SRC" -crop  528x678+1520+40 +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-beacon.webp
-magick "$SRC" -crop  240x316+60+50 +repage -level 3%,100% -background black \
-        -gravity center -extent 336x336 icon-square.png
+magick "$SRC" -crop  220x301+80+65 +repage -level 3%,100% \
+        \( -size 301x40 gradient:none-black -rotate -90 \) -geometry +180+0 -composite \
+        -background black -alpha remove -alpha off -gravity center -extent 330x330 icon-square.png
 magick icon-square.png -filter Lanczos -resize 256x256 -strip costlight-icon.png
 ```
 
-The icon crop stops at `x 300` because the crescent's tip ends around `x 281` and the
-`o` of `ostlight` starts around `x 306`. Cutting any wider leaves a stray blue sliver
-that reads as a glitch once the icon is scaled down.
+The icon crop is the lit content's exact bounding box, so the mark lands centred in the
+square rather than drifting to one side. It stops at `x 300` because the crescent's tip
+ends around `x 281` and the `o` of `ostlight` starts around `x 306`; cutting any wider
+leaves a stray blue sliver that reads as a glitch once the icon is scaled down.
+
+The transparent-to-black gradient fades the beam out before the frame edge. Without it
+the beam ends on a straight vertical cut, because it is still at full brightness where
+the `o` forces the crop to stop. Compositing that gradient over the art keeps colour;
+multiplying by a greyscale mask instead collapses the whole image to grey.
 
 `costlight-favicon.ico` packs 16, 32 and 48px. Each is resized and sharpened from
 `icon-square.png` at its own scale rather than downsampled from one bitmap, because the
