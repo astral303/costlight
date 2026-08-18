@@ -19,6 +19,14 @@ const VIEWPORTS = [
 /** Text anti-aliasing drifts by a few pixels; a real layout change moves far more. */
 const MAXIMUM_CHANGED_PIXEL_RATIO = 0.002;
 
+/**
+ * Launching Chromium and rendering usually takes about two seconds, but has been seen
+ * to reach seven on a loaded machine. Bun's default per-test timeout of five seconds
+ * would report that as a bare failure carrying no diff, which reads exactly like a
+ * genuine pixel change until the elapsed time gives it away.
+ */
+const CAPTURE_TIMEOUT_MS = 60_000;
+
 const browserPath = findBrowser();
 let markup = "";
 
@@ -51,7 +59,7 @@ describe.if(browserPath !== null)("dashboard chrome", () => {
         `${comparison.changedPixels} pixels changed. See ${comparison.failureArtifacts.join(", ")}. `
         + "Re-run with UPDATE_VISUAL_BASELINES=1 once the change is intended.",
       ).toBeLessThanOrEqual(MAXIMUM_CHANGED_PIXEL_RATIO);
-    });
+    }, CAPTURE_TIMEOUT_MS);
   }
 });
 
