@@ -8,3 +8,4 @@ coverage/
 *.sqlite-wal
 .env
 .DS_Store
+tests/visual/__failures__/
