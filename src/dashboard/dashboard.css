@@ -11,7 +11,7 @@
 .dashboard-header {
   /* The artwork is one scene: `mark-height` is the lit mark above the waterline,
      `scene-height` adds the reflection that spills past the header. */
-  --costlight-mark-height: clamp(74px, 8.4vw, 128px);
+  --costlight-mark-height: clamp(48px, 5.46vw, 83px);
   --costlight-scene-height: calc(var(--costlight-mark-height) / 0.46);
   --costlight-wordmark-aspect: 1.534;
   --costlight-beacon-aspect: 0.779;
