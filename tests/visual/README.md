@@ -27,6 +27,12 @@ because `chromium.launch()` times out under Bun on Windows: writes to extra stdi
 [oven-sh/bun#31829][bun-fix] but not yet in a release as of Bun 1.3.14. Worth re-testing
 Playwright once that ships, since it would bring element clipping and font-ready waits.
 
+That retry can be a straight one: the fix's known limitations are confined to `cluster`,
+IPC handle passing and dgram, none of which touch the raw fd 3/4 pipe writes
+`--remote-debugging-pipe` relies on. Note that element clipping is not automatically the
+better instrument here — the artwork painting over the metric row was a bleed across
+region boundaries, which a capture clipped to the header would have missed.
+
 `--virtual-time-budget` gives layout, image decoding and web fonts a virtual clock to
 settle on, which is what makes repeat runs identical.
 
