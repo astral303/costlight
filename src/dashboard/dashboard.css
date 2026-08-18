@@ -1,7 +1,11 @@
+/* Owns the stacking context the header artwork sits behind. Without it the artwork
+   resolves against the root and paints over in-flow content such as the metric row. */
 .dashboard-shell {
+  position: relative;
   width: min(1500px, calc(100% - 36px));
   margin: 0 auto;
   padding: 24px 0 28px;
+  isolation: isolate;
 }
 
 .dashboard-header {
@@ -22,13 +26,15 @@
     rgb(0 0 0 / 34%) 86%,
     transparent 100%
   );
+  /* Positioned only to anchor the scene. Deliberately not a stacking context, so the
+     scene's negative z-index resolves against `.dashboard-shell` and stays behind
+     every sibling below the header. */
   position: relative;
   display: flex;
   min-height: var(--costlight-mark-height);
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  isolation: isolate;
 }
 
 /* Canvas the lit artwork screens onto. It is filled with the page colour, so only
@@ -160,7 +166,6 @@
    wordmark's reflection passes through it rather than stopping dead at its top.
    The selects carry an opaque fill of their own, so the row stays readable. */
 .filter-bar {
-  position: relative;
   display: grid;
   grid-template-columns: repeat(8, minmax(120px, 1fr));
   gap: 8px;
