@@ -66,7 +66,9 @@ export function Dashboard() {
   return (
     <main className="dashboard-shell">
       <header className="dashboard-header">
-        <div className="dashboard-header__scene" aria-hidden="true" />
+        <div className="dashboard-header__scene" aria-hidden="true">
+          <span className="dashboard-header__water" />
+        </div>
         <div className="dashboard-header__primary">
           <h1>Costlight</h1>
           {dashboard.health !== null && (

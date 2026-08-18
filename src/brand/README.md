@@ -1,9 +1,17 @@
 # Costlight brand assets
 
-All three files are crops of one render, so they share a horizon and a light direction
-and can be laid out as a single continuous scene.
+The wordmark, beacon and icon are crops of one render, so they share a horizon and a
+light direction and can be laid out as a single continuous scene.
 
 Source render: `2048x768`, the crystal-chiselled Costlight lockup on dark water.
+
+`costlight-water.webp` comes from a second render: an empty sea, `1672x941`, used to
+carry the waterline across the full header. The dashboard header is roughly aspect 8
+while these crops are roughly aspect 1.5, so laying the lockup and the beacon out at
+their own proportions covers about a third of the width and strands each of them as a
+rectangle in open space. No amount of edge feathering fixes that; the gap has to be
+filled. Conveniently the empty-sea render falls off blue on the left and gold on the
+right, which is the same direction the lockup and beacon are placed in.
 
 ## Cutting the assets
 
@@ -27,6 +35,19 @@ magick "$SRC" -crop  220x301+80+65 +repage -level 3%,100% \
         -background black -alpha remove -alpha off -gravity center -extent 330x330 icon-square.png
 magick icon-square.png -filter Lanczos -resize 256x256 -strip costlight-icon.png
 ```
+
+The water fill is cut from the second render so its horizon lands at the same 46% the
+scene uses, which is what makes it line up with the reflections in the other two. Its
+horizon sits at `y 495`, so the crop takes 212px of sky above and 248px of water below:
+
+```sh
+magick "$SEA" -crop 1672x460+0+283 +repage -level 3%,100% -quality 88 -define webp:method=6 costlight-water.webp
+```
+
+A short crop is deliberate. The horizon's position fixes the ratio of sky to water inside
+it, so the only way to reduce how far the fill has to stretch across a wide header is to
+take a shallower band. At 460px tall it stretches about 2x, which ripples already
+elongated by perspective absorb without looking wrong.
 
 The icon crop is the lit content's exact bounding box, so the mark lands centred in the
 square rather than drifting to one side. It stops at `x 300` because the crescent's tip
