@@ -5,31 +5,106 @@
 }
 
 .dashboard-header {
+  /* The artwork is one scene: `mark-height` is the lit mark above the waterline,
+     `scene-height` adds the reflection that spills past the header. */
+  --costlight-mark-height: clamp(74px, 8.4vw, 128px);
+  --costlight-scene-height: calc(var(--costlight-mark-height) / 0.46);
+  --costlight-wordmark-aspect: 1.534;
+  --costlight-beacon-aspect: 0.779;
+  --costlight-heading-ratio: 3.11;
+  --costlight-beacon-clearance: calc(var(--costlight-scene-height) * 0.86);
+  /* Fades the render's rectangular edges away instead of butting them against the page. */
+  --costlight-spill: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 2.5% 52%,
+    rgb(0 0 0 / 72%) 68%,
+    rgb(0 0 0 / 34%) 86%,
+    transparent 100%
+  );
+  position: relative;
   display: flex;
-  align-items: center;
+  min-height: var(--costlight-mark-height);
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
+  isolation: isolate;
+}
+
+/* Canvas the lit artwork screens onto. It is filled with the page colour, so only
+   the light survives the blend and the dark render background disappears. */
+.dashboard-header__scene {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--costlight-scene-height);
+  background-color: #0b1016;
+  /* Carries the haze the two beams throw across the gap between them. Kept clear of
+     the box edges so it fades out rather than ending on a straight line. */
+  background-image: radial-gradient(40% 30% at 52% 40%, rgb(255 168 48 / 9%), transparent 74%);
+  pointer-events: none;
+}
+
+.dashboard-header__scene::before,
+.dashboard-header__scene::after {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  content: "";
+  mix-blend-mode: screen;
+}
+
+.dashboard-header__scene::before {
+  left: 0;
+  width: calc(var(--costlight-scene-height) * var(--costlight-wordmark-aspect));
+  background-image: url("../brand/costlight-wordmark.webp");
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 82%, transparent 99%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 82%, transparent 99%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* Holds the top-right corner; the status block is kept clear of it by its margin. */
+.dashboard-header__scene::after {
+  right: 0;
+  width: calc(var(--costlight-scene-height) * var(--costlight-beacon-aspect));
+  background-image: url("../brand/costlight-beacon.webp");
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 34% 84%, transparent 100%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 34% 84%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
 }
 
 .dashboard-header__primary {
   display: flex;
   min-width: 0;
+  height: var(--costlight-mark-height);
   align-items: center;
   gap: 34px;
 }
 
+/* The wordmark is the artwork; the heading text stays for assistive technology. */
 .dashboard-header h1 {
+  width: calc(var(--costlight-mark-height) * var(--costlight-heading-ratio));
+  height: var(--costlight-mark-height);
+  flex: none;
   margin: 0;
-  color: #f0f6fc;
-  font-size: clamp(1.8rem, 3vw, 2.8rem);
-  font-weight: 720;
-  letter-spacing: -0.045em;
-  line-height: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-indent: 101%;
 }
 
+/* Sits immediately left of the corner lighthouse. The status text grows leftwards
+   into open space, so it never runs into the artwork. */
 .dashboard-header__actions {
   display: flex;
+  height: var(--costlight-mark-height);
   align-items: center;
+  margin-right: var(--costlight-beacon-clearance);
   gap: 10px;
 }
 
@@ -81,22 +156,33 @@
   background: #2b2116;
 }
 
+/* The panel fades in from transparent instead of starting on a flat edge, so the
+   wordmark's reflection passes through it rather than stopping dead at its top.
+   The selects carry an opaque fill of their own, so the row stays readable. */
 .filter-bar {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(8, minmax(120px, 1fr));
   gap: 8px;
   margin: 20px 0 12px;
   padding: 10px;
   border-radius: 12px;
-  background: #101720;
+  background: linear-gradient(
+    to bottom,
+    rgb(16 23 32 / 16%) 0,
+    rgb(16 23 32 / 58%) 52%,
+    rgb(16 23 32 / 80%) 100%
+  );
 }
 
+/* The label sits directly on the reflection, so it needs its own separation. */
 .filter-field span {
   display: block;
   margin: 0 0 5px 3px;
   color: #718092;
   font-size: 0.62rem;
   font-weight: 650;
+  text-shadow: 0 1px 3px rgb(4 8 14 / 85%);
 }
 
 .filter-field {
@@ -378,6 +464,14 @@ td small {
   font-size: 0.68rem;
 }
 
+/* Below this the dropdowns and status block already fill the row; the beacon would
+   sit on top of them rather than beside them. Keep it clear of 1280px, which is what
+   a 1920px display reports at 150% scaling. */
+@media (max-width: 1120px) {
+  .dashboard-header__actions { margin-right: 0; }
+  .dashboard-header__scene::after { display: none; }
+}
+
 @media (max-width: 1180px) {
   .filter-bar { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -387,8 +481,8 @@ td small {
 @media (max-width: 720px) {
   .dashboard-shell { width: min(100% - 22px, 1500px); padding-top: 18px; }
   .dashboard-header { align-items: stretch; flex-direction: column; gap: 10px; }
-  .dashboard-header__primary { align-items: flex-start; flex-direction: column; gap: 14px; }
-  .dashboard-header__actions { justify-content: space-between; }
+  .dashboard-header__primary { height: auto; align-items: flex-start; flex-direction: column; gap: 14px; }
+  .dashboard-header__actions { height: auto; justify-content: space-between; }
   .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric:last-child { grid-column: 1 / -1; }
