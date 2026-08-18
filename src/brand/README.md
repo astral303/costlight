@@ -58,10 +58,14 @@ reflection below it, so the heading occupies only the space the artwork appears 
 ## Resolution headroom
 
 The crops are 678px tall and render into a box of `--costlight-scene-height`, which
-peaks at 278px once `--costlight-mark-height` hits its `128px` clamp. That is **2.44x**
-native, so the header stays sharp through 2x displays with room to spare.
+peaks at 180px once `--costlight-mark-height` hits its `83px` clamp. That is **3.77x**
+native, so the header stays sharp through 3x displays.
 
-It runs out at 3x: 278 CSS px would want 834 device px against the 678 available, about
-0.81x. Nothing else is close to the limit, so a 3x-clean header needs a re-render of the
-source at roughly `5120x1920` rather than an upscale of these files. Re-cut it with the
-crop rectangles above scaled by the same factor and the CSS needs no change.
+It only runs short at 4x, where 180 CSS px would want 720 device px against the 678
+available. Should the mark ever be scaled back up, the headroom falls with it: at a
+`128px` clamp the scene is 278px and the margin drops to 2.44x, which is still fine at
+2x but soft at 3x.
+
+Either way the fix is a re-render of the source rather than an upscale of these files.
+Re-cut it with the crop rectangles above scaled by the same factor and the CSS needs no
+change.
