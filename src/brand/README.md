@@ -11,9 +11,17 @@ Each crop keeps the same vertical window (`y 40..718`) so the waterline lands on
 same row in every file. `-level 3%,100%` drops the render's near-black floor to true
 black, which is what lets `mix-blend-mode: screen` erase the background in the header.
 
+The wordmark and beacon crops **overlap** on `x 1010..1066`, and that is deliberate. Cut
+at a single vertical line, either the water still trailing right of the final `t` or the
+left reach of the beam has to be severed, because the two run past each other. Since both
+are screened over black, an overlap costs nothing: the darker crop contributes no light,
+so the pieces interlock instead of butting together. Averaging column brightness over the
+render puts the wordmark's trailing glow and the start of the beam haze both near
+`x 1024`, which is why each crop extends to roughly there.
+
 ```sh
 magick "$SRC" -crop 1040x678+26+40   +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-wordmark.webp
-magick "$SRC" -crop  528x678+1520+40 +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-beacon.webp
+magick "$SRC" -crop 1038x678+1010+40 +repage -level 3%,100% -quality 90 -define webp:method=6 costlight-beacon.webp
 magick "$SRC" -crop  220x301+80+65 +repage -level 3%,100% \
         \( -size 301x40 gradient:none-black -rotate -90 \) -geometry +180+0 -composite \
         -background black -alpha remove -alpha off -gravity center -extent 330x330 icon-square.png
@@ -49,7 +57,7 @@ Re-cutting the crops means re-deriving these custom properties:
 | --- | --- | --- |
 | `--costlight-scene-height` divisor | `0.46` | waterline at `y 312` of the 678px crop |
 | `--costlight-wordmark-aspect` | `1.534` | `1040 / 678` |
-| `--costlight-beacon-aspect` | `0.779` | `528 / 678` |
+| `--costlight-beacon-aspect` | `1.531` | `1038 / 678` |
 | `--costlight-heading-ratio` | `3.11` | mark runs to `x 969`, so `(969 / 678) / 0.46` |
 
 `--costlight-heading-ratio` sizes the `h1` box to the lit mark alone, ignoring the

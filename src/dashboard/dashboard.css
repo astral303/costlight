@@ -14,7 +14,7 @@
   --costlight-mark-height: clamp(48px, 5.46vw, 83px);
   --costlight-scene-height: calc(var(--costlight-mark-height) / 0.46);
   --costlight-wordmark-aspect: 1.534;
-  --costlight-beacon-aspect: 0.779;
+  --costlight-beacon-aspect: 1.531;
   --costlight-heading-ratio: 3.11;
   --costlight-beacon-clearance: calc(var(--costlight-scene-height) * 0.86);
   /* Fades the render's rectangular edges away instead of butting them against the page. */
@@ -68,19 +68,23 @@
   left: 0;
   width: calc(var(--costlight-scene-height) * var(--costlight-wordmark-aspect));
   background-image: url("../brand/costlight-wordmark.webp");
-  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 82%, transparent 99%);
-  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 82%, transparent 99%);
+  /* Holds to 96%, where the trailing water glow past the final `t` actually ends.
+     Fading sooner cut through reflections the render still had running. */
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 96%, transparent 100%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 3% 96%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }
 
-/* Holds the top-right corner; the status block is kept clear of it by its margin. */
+/* Holds the top-right corner; the status block is kept clear of the lighthouse by its
+   margin, while the beam reaches back across the header as it does in the render.
+   Its crop starts where the beam does, so it only needs its own edges softened. */
 .dashboard-header__scene::after {
   right: 0;
   width: calc(var(--costlight-scene-height) * var(--costlight-beacon-aspect));
   background-image: url("../brand/costlight-beacon.webp");
-  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 34% 84%, transparent 100%);
-  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 34% 84%, transparent 100%);
+  -webkit-mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 4% 93%, transparent 100%);
+  mask-image: var(--costlight-spill), linear-gradient(to right, transparent 0, #000 4% 93%, transparent 100%);
   -webkit-mask-composite: source-in;
   mask-composite: intersect;
 }
