@@ -49,7 +49,7 @@
   background-color: var(--color-app-bg);
   /* Carries the haze the two beams throw across the gap between them. Kept clear of
      the box edges so it fades out rather than ending on a straight line. */
-  background-image: radial-gradient(40% 30% at 52% 40%, rgb(255 168 48 / 9%), transparent 74%);
+  background-image: radial-gradient(40% 30% at 52% 40%, rgb(from var(--color-beam) r g b / 9%), transparent 74%);
   pointer-events: none;
 }
 
@@ -186,9 +186,9 @@
   background: var(--color-surface-warning);
 }
 
-/* The panel fades in from transparent instead of starting on a flat edge, so the
-   wordmark's reflection passes through it rather than stopping dead at its top.
-   The selects carry an opaque fill of their own, so the row stays readable. */
+/* The panel fades up to the same fill the solid panels use, instead of starting on a flat
+   edge, so the wordmark's reflection passes through it rather than stopping dead at its
+   top. The selects carry an opaque fill of their own, so the row stays readable. */
 .filter-bar {
   display: grid;
   grid-template-columns: repeat(8, minmax(120px, 1fr));
@@ -198,9 +198,9 @@
   border-radius: 12px;
   background: linear-gradient(
     to bottom,
-    rgb(16 23 32 / 16%) 0,
-    rgb(16 23 32 / 58%) 52%,
-    rgb(16 23 32 / 80%) 100%
+    rgb(from var(--color-surface-raised) r g b / 16%) 0,
+    rgb(from var(--color-surface-raised) r g b / 58%) 52%,
+    rgb(from var(--color-surface-raised) r g b / 80%) 100%
   );
 }
 
@@ -211,7 +211,7 @@
   color: var(--color-text-9);
   font-size: 0.62rem;
   font-weight: 650;
-  text-shadow: 0 1px 3px rgb(4 8 14 / 85%);
+  text-shadow: var(--text-shadow-over-artwork);
 }
 
 .filter-field {

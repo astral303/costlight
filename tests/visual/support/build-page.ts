@@ -4,7 +4,8 @@ const SOURCE_DIRECTORY = join(import.meta.dir, "..", "..", "..", "src");
 
 /**
  * Linked in load order rather than bundled, so a capture exercises the same cascade the
- * application produces. `application.css` carries the page defaults and must come first.
+ * application produces. `application.css` carries the page defaults and must come first;
+ * it `@import`s the palette, which is why that file is not listed separately.
  */
 const STYLESHEETS = [
   "app/application.css",

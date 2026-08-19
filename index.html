@@ -7,7 +7,9 @@
     <link rel="apple-touch-icon" href="./src/brand/costlight-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#0d1117" />
+    <!-- Browser chrome cannot read a custom property, so this repeats `--color-page-bg`.
+         `tests/palette` fails when the copy drifts from the token. -->
+    <meta name="theme-color" content="#0c1117" />
     <meta name="description" content="Local, replay-safe metered API cost tracking for Kimi Code and Claude Code." />
     <title>Costlight</title>
   </head>

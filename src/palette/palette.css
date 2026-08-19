@@ -1,0 +1,86 @@
+/* Every colour the interface uses starts here. A colour is either a literal, which is a
+   decision, or a stated step from one, which follows from a decision made elsewhere.
+
+   Feature stylesheets are expected to add colours of their own. They state them against
+   these tokens; `tests/palette` fails on a colour literal written anywhere but this file.
+
+   Steps mix in CIE Lab, the space the ramps are spaced in, so a percentage reads as the
+   perceptual distance it travels. README.md covers the reasoning. */
+:root {
+  /* Surfaces, darkest to lightest. Both ends are literal and everything between is a
+     position on the line joining them, so retuning an end moves the whole ramp.
+
+     The percentages are fitted rather than chosen: the surfaces predate the ramp and sit
+     slightly off the line, so most land within a unit or two per channel of their original
+     value rather than on it. Read them as "where this sits" — the round-looking 11% is no
+     more deliberate than the 49.3%. */
+  --color-app-bg: #0b1016;
+  --color-border: #19232e;
+
+  --color-page-bg: color-mix(in lab, var(--color-border) 2.2%, var(--color-app-bg));
+  --color-surface-subtle: color-mix(in lab, var(--color-border) 11%, var(--color-app-bg));
+  --color-surface-raised: color-mix(in lab, var(--color-border) 32.5%, var(--color-app-bg));
+  --color-surface-elevated: color-mix(in lab, var(--color-border) 49.3%, var(--color-app-bg));
+  --color-surface-control: color-mix(in lab, var(--color-border) 73.9%, var(--color-app-bg));
+  --color-surface-overlay: color-mix(in lab, var(--color-border) 94.1%, var(--color-app-bg));
+
+  /* Off the neutral ramp: these carry hue because they signal state. */
+  --color-surface-warning: #2b2116;
+  --color-surface-error: #301818;
+
+  /* Neutral text ramp, brightest first. Eleven ordinal steps evenly spaced between two
+     literal ends, because relative dimness is the only property consumers pick on and no
+     adjective set conveys an order.
+
+     Step 4 has no consumer. It is kept so that step N stays (N - 1) x 10% of the way down
+     the ramp; closing the gap would either leave a hole in the numbering or break that
+     correspondence for every step below it.
+
+     The dim end is set by contrast rather than taste: step 11 is the darkest value on its
+     hue that still clears 4.5:1 on the page background, which is what pulls the rest of
+     the ramp up with it. */
+  --color-text-1: #e6edf3;
+  --color-text-11: #728092;
+
+  --color-text-2: color-mix(in lab, var(--color-text-11) 10%, var(--color-text-1));
+  --color-text-3: color-mix(in lab, var(--color-text-11) 20%, var(--color-text-1));
+  --color-text-4: color-mix(in lab, var(--color-text-11) 30%, var(--color-text-1));
+  --color-text-5: color-mix(in lab, var(--color-text-11) 40%, var(--color-text-1));
+  --color-text-6: color-mix(in lab, var(--color-text-11) 50%, var(--color-text-1));
+  --color-text-7: color-mix(in lab, var(--color-text-11) 60%, var(--color-text-1));
+  --color-text-8: color-mix(in lab, var(--color-text-11) 70%, var(--color-text-1));
+  --color-text-9: color-mix(in lab, var(--color-text-11) 80%, var(--color-text-1));
+  --color-text-10: color-mix(in lab, var(--color-text-11) 90%, var(--color-text-1));
+
+  /* Near-black green: the only text that sits on an accent fill. */
+  --color-text-on-accent: #081611;
+
+  /* Classification markers: primary agents and exact rates against derived ones.
+     Neutral is a ramp step; the other two carry hue, which is the distinction. */
+  --color-badge-neutral: var(--color-text-5);
+  --color-badge-primary: #82e0bf;
+  --color-badge-derived: #c7bcff;
+
+  /* The one interactive colour: focus rings, hover, selection, the primary button.
+     Being green is incidental — read `--color-status-connected` for the status meaning. */
+  --color-accent: #65d6ad;
+  --color-accent-focus-ring: rgb(from var(--color-accent) r g b / 9.4%);
+  --color-status-connected: var(--color-accent);
+
+  --color-warning: #f0a04b;
+  --color-warning-text: #f8d5a8;
+  --color-error-text: #ffd5d5;
+
+  /* The haze the lighthouse beams throw across the header artwork. Its own anchor rather
+     than a tint of `--color-warning`: they are dE 15 apart, and the artwork has no reason
+     to move when a warning colour does. */
+  --color-beam: #ffa830;
+
+  /* Deeper than any surface, so that content laid over the lit artwork can separate itself
+     from it. Stated as a darkening of the app background, which is what it reads as. */
+  --color-shadow: color-mix(in lab, #000 50%, var(--color-app-bg));
+
+  /* Text placed directly on the header artwork, in two modules that cannot see each other.
+     Declared once because the pair has to move together. */
+  --text-shadow-over-artwork: 0 1px 3px rgb(from var(--color-shadow) r g b / 85%);
+}
