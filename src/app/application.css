@@ -1,9 +1,15 @@
-/* Every colour below is either one of thirteen literals or a stated step between two of
-   them. Mixing happens in CIE Lab, the space the ramps were spaced in, so a percentage
-   reads as the perceptual distance it actually travels. */
+/* Every colour below is either a literal or a stated step between two literals. Mixing
+   happens in CIE Lab, the space the ramps were spaced in, so a percentage reads as the
+   perceptual distance it actually travels. See README.md for why the palette is shaped
+   this way. */
 :root {
   /* Surfaces, darkest to lightest. The two ends are literal and everything between is a
-     position on the line joining them, so retuning either end moves the whole ramp. */
+     position on the line joining them, so retuning either end moves the whole ramp.
+
+     These percentages are fitted rather than chosen: the surfaces predate the ramp and sit
+     slightly off the line, so most reproduce their original value to within a unit or two
+     per channel rather than exactly. Read them as "where this sits", not as a design
+     grid — the round-looking 11% is no more meaningful than the 49.3%. */
   --color-app-bg: #0b1016;
   --color-border: #19232e;
 
