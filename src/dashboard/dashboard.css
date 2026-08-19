@@ -237,7 +237,7 @@
 }
 
 .filter-field select:disabled {
-  color: var(--color-text-subtle);
+  color: var(--color-text-disabled);
   cursor: default;
 }
 
@@ -255,7 +255,7 @@
 }
 
 .metric > span {
-  color: var(--color-text-muted);
+  color: var(--color-text-metric-label);
   font-size: 0.68rem;
   font-weight: 650;
 }
@@ -269,7 +269,7 @@
 
 .metric > small {
   margin-top: 3px;
-  color: var(--color-text-muted);
+  color: var(--color-text-metric-label);
   font-size: 0.64rem;
 }
 
@@ -293,7 +293,7 @@
   display: grid;
   height: 340px;
   place-items: center;
-  color: var(--color-text-faint);
+  color: var(--color-text-placeholder);
   font-size: 0.75rem;
 }
 
@@ -373,7 +373,7 @@ th {
 }
 
 td {
-  color: var(--color-text-subtle);
+  color: var(--color-table-cell);
 }
 
 td strong,
@@ -382,7 +382,7 @@ td small {
 }
 
 td strong {
-  color: var(--color-text-strong);
+  color: var(--color-table-cell-emphasis);
   font-size: 0.76rem;
 }
 
@@ -390,7 +390,7 @@ td small {
   max-width: 360px;
   margin-top: 4px;
   overflow: hidden;
-  color: var(--color-text-faint);
+  color: var(--color-table-cell-caption);
   font-size: 0.66rem;
   text-overflow: ellipsis;
 }
@@ -454,7 +454,7 @@ td small {
   display: inline-block;
   width: fit-content;
   padding: 2px 0;
-  color: var(--color-text-subtle);
+  color: var(--color-badge-neutral);
   font-size: 0.58rem;
   font-weight: 700;
 }
@@ -462,17 +462,17 @@ td small {
 .agent-type--main,
 .rate-badge--exact,
 .rate-badge--override {
-  color: var(--color-success-dim);
+  color: var(--color-badge-primary);
 }
 
 .agent-type--sub,
 .rate-badge--bundled,
 .rate-badge--inferred {
-  color: var(--color-tertiary);
+  color: var(--color-badge-derived);
 }
 
 .rate-cell {
-  color: var(--color-text-soft);
+  color: var(--color-table-rate);
   font-variant-numeric: tabular-nums;
 }
 
@@ -489,7 +489,7 @@ td small {
   justify-content: center;
   gap: 8px 22px;
   padding: 22px 0 0;
-  color: var(--color-text-faint);
+  color: var(--color-text-footer);
   font-size: 0.68rem;
 }
 
