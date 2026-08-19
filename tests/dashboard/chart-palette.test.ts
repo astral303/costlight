@@ -28,7 +28,7 @@ describe("chart chrome tracks the interface palette", () => {
   });
 
   test("the zoom handle is the interactive accent", async () => {
-    expect(CHART_CHROME.zoomHandle).toBe(await readToken("--color-success"));
+    expect(CHART_CHROME.zoomHandle).toBe(await readToken("--color-accent"));
   });
 });
 
