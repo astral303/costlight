@@ -30,6 +30,6 @@
 
 .connection-status small {
   margin-top: 2px;
-  color: var(--color-text-subtle);
+  color: var(--color-text-status);
   font-size: 0.64rem;
 }
