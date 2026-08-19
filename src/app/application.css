@@ -6,7 +6,6 @@
   --color-surface-elevated: #111a23;
   --color-surface-subtle: #0c131a;
   --color-surface-control: #151e29;
-  --color-surface-button: #141d27;
   --color-surface-overlay: #18222d;
   --color-surface-warning: #2b2116;
   --color-surface-error: #301818;
@@ -16,11 +15,11 @@
   --color-text: #e6edf3;
   --color-text-emphasis: #f0f6fc;
   --color-text-strong: #d5dde7;
-  --color-text-main: #e8eef5;
   --color-text-subtle: #aeb9c6;
   --color-text-soft: #9aa7b6;
   --color-text-muted: #718092;
   --color-text-faint: #6f7c8d;
+  /* Near-black green: the only text that sits on an accent fill. */
   --color-text-on-accent: #081611;
   --color-text-disabled: #8996a5;
   --color-text-metric-label: #758396;
@@ -38,21 +37,15 @@
   --color-badge-primary: #82e0bf;
   --color-badge-derived: #c7bcff;
 
-  --color-selection-text: #07110d;
-  --color-selection-bg: #65d6ad;
+  /* The one interactive colour: focus rings, hover, selection, the primary button.
+     Being green is incidental — read `--color-status-connected` for the status meaning. */
+  --color-accent: #65d6ad;
+  --color-accent-focus-ring: #65d6ad18;
+  --color-status-connected: var(--color-accent);
 
-  --color-success: #65d6ad;
-  --color-success-shadow: #65d6ad18;
-  --color-success-focus: color-mix(in oklab, var(--color-success) 80%, var(--color-text) 20%);
   --color-warning: #f0a04b;
-  --color-warning-soft: color-mix(in oklab, var(--color-warning) 10%, transparent);
   --color-warning-text: #f8d5a8;
   --color-error-text: #ffd5d5;
-
-  --color-gradient-filter-start: color-mix(in oklab, var(--color-app-bg) 95%, transparent 5%);
-  --color-gradient-filter-mid: color-mix(in oklab, var(--color-app-bg) 42%, transparent 58%);
-  --color-gradient-filter-end: color-mix(in oklab, var(--color-app-bg) 20%, transparent 80%);
-  --color-text-shadow: color-mix(in oklab, black 85%, transparent 15%);
 
   color: var(--color-text);
   background: var(--color-page-bg);
@@ -85,6 +78,6 @@ select {
 }
 
 ::selection {
-  color: var(--color-selection-text);
-  background: var(--color-selection-bg);
+  color: var(--color-text-on-accent);
+  background: var(--color-accent);
 }

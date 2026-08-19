@@ -12,7 +12,7 @@
 }
 
 .connection-status__dot.is-connected {
-  background: var(--color-success);
+  background: var(--color-status-connected);
 }
 
 /* In the dashboard header this sits over the lit water behind it, so both lines
