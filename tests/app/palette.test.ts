@@ -4,9 +4,9 @@ import { isDerived, resolvePalette } from "./support/resolve-palette";
 
 /**
  * Tokens meant to resolve to a colour another token already has. Each names a second
- * meaning, so that retuning one meaning does not silently move the other. A duplicate has
- * to be declared here, which is what would have stopped `--color-secondary` from being
- * invented purely to feed `--color-chart-series-2`.
+ * meaning, so that retuning one meaning does not silently move the other. Requiring the
+ * declaration here is what stops the palette growing a synonym whenever someone needs a
+ * name rather than a value.
  */
 const INTENTIONAL_ALIASES = new Set(["--color-badge-neutral", "--color-status-connected"]);
 
