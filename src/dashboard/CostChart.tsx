@@ -19,6 +19,7 @@ import * as echarts from "echarts/core";
 import type { ComposeOption, EChartsType as ECharts } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
+import { CHART_CHROME, CHART_SERIES_COLORS } from "./chart-palette";
 import {
   captureChartZoom,
   type ChartZoomRange,
@@ -166,7 +167,7 @@ export function createChartOption(
     animationDurationUpdate: 260,
     aria: { enabled: true },
     backgroundColor: "transparent",
-    color: ["#65d6ad", "#42a5c6", "#8b7cf6", "#f0a04b", "#f5f7fa"],
+    color: CHART_SERIES_COLORS,
     dataset: {
       dimensions: ["observation", "time", "uncachedInput", "cacheCreation", "cacheRead", "output", "total"],
       source: rows,
@@ -178,11 +179,11 @@ export function createChartOption(
         bottom: 4,
         height: 18,
         borderColor: "transparent",
-        backgroundColor: "#0d131b",
-        fillerColor: "#65d6ad20",
-        handleStyle: { color: "#65d6ad" },
+        backgroundColor: CHART_CHROME.zoomBackground,
+        fillerColor: CHART_CHROME.zoomFill,
+        handleStyle: { color: CHART_CHROME.zoomHandle },
         showDetail: false,
-        textStyle: { color: "#738092", fontSize: 9 },
+        textStyle: { color: CHART_CHROME.axisLabel, fontSize: 9 },
         ...zoomRange,
       },
     ],
@@ -192,11 +193,11 @@ export function createChartOption(
       itemHeight: 7,
       itemWidth: 16,
       left: 0,
-      pageIconColor: "#9aa7b6",
-      pageIconInactiveColor: "#4c5866",
-      pageTextStyle: { color: "#738092", fontSize: 9 },
+      pageIconColor: CHART_CHROME.legendText,
+      pageIconInactiveColor: CHART_CHROME.legendTextInactive,
+      pageTextStyle: { color: CHART_CHROME.axisLabel, fontSize: 9 },
       right: 60,
-      textStyle: { color: "#9aa7b6", fontSize: 10 },
+      textStyle: { color: CHART_CHROME.legendText, fontSize: 10 },
       top: 4,
       type: "scroll",
     },
@@ -225,23 +226,23 @@ export function createChartOption(
       ],
     tooltip: {
       axisPointer: { type: kind === "bucket" ? "shadow" : "line" },
-      backgroundColor: "#111821f2",
-      borderColor: "#354253",
+      backgroundColor: CHART_CHROME.tooltipBackground,
+      borderColor: CHART_CHROME.tooltipBorder,
       formatter: (parameters: unknown) => formatChartTooltip(parameters, rows),
-      textStyle: { color: "#e6edf3" },
+      textStyle: { color: CHART_CHROME.tooltipText },
       trigger: "axis",
     },
     toolbox: {
-      emphasis: { iconStyle: { borderColor: "#f5f7fa" } },
+      emphasis: { iconStyle: { borderColor: CHART_CHROME.toolboxIconEmphasis } },
       feature: {
         dataZoom: {
-          brushStyle: { borderColor: "#65d6ad", color: "#65d6ad20" },
+          brushStyle: { borderColor: CHART_CHROME.zoomHandle, color: CHART_CHROME.zoomFill },
           title: { back: "Undo zoom", zoom: "Drag to zoom" },
           xAxisIndex: 0,
           yAxisIndex: "none",
         },
       },
-      iconStyle: { borderColor: "#9aa7b6" },
+      iconStyle: { borderColor: CHART_CHROME.toolboxIcon },
       itemGap: 8,
       itemSize: 14,
       right: 12,
@@ -249,14 +250,14 @@ export function createChartOption(
     },
     xAxis: {
       axisLabel: {
-        color: "#738092",
+        color: CHART_CHROME.axisLabel,
         formatter: (value) => formatAxisValue(rows, value, "axis"),
         hideOverlap: true,
       },
-      axisLine: { lineStyle: { color: "#2a3544" } },
+      axisLine: { lineStyle: { color: CHART_CHROME.axisLine } },
       axisPointer: {
         label: {
-          backgroundColor: "#273444",
+          backgroundColor: CHART_CHROME.axisPointerLabel,
           formatter: (parameters) => formatAxisValue(rows, parameters.value, "tooltip"),
         },
       },
@@ -265,8 +266,8 @@ export function createChartOption(
       type: "category",
     },
     yAxis: {
-      axisLabel: { color: "#738092", formatter: (value: number) => formatChartUsd(value) },
-      splitLine: { lineStyle: { color: "#19232e" } },
+      axisLabel: { color: CHART_CHROME.axisLabel, formatter: (value: number) => formatChartUsd(value) },
+      splitLine: { lineStyle: { color: CHART_CHROME.gridLine } },
       type: "value",
     },
   };

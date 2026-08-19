@@ -46,7 +46,7 @@
   right: 0;
   left: 0;
   height: var(--costlight-scene-height);
-  background-color: #0b1016;
+  background-color: var(--color-app-bg);
   /* Carries the haze the two beams throw across the gap between them. Kept clear of
      the box edges so it fades out rather than ending on a straight line. */
   background-image: radial-gradient(40% 30% at 52% 40%, rgb(255 168 48 / 9%), transparent 74%);
@@ -144,21 +144,21 @@
   height: 34px;
   padding: 0;
   place-items: center;
-  color: #9aa7b6;
+  color: var(--color-text-6);
   border: 0;
   border-radius: 50%;
-  background: #141d27;
+  background: var(--color-surface-control);
   cursor: pointer;
   font-size: 1.2rem;
   line-height: 1;
 }
 
 .rescan-button:hover:not(:disabled) {
-  color: #65d6ad;
+  color: var(--color-accent);
 }
 
 .rescan-button:focus-visible {
-  outline: 2px solid #65d6ad;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -177,13 +177,13 @@
 }
 
 .dashboard-error {
-  color: #ffd5d5;
-  background: #301818;
+  color: var(--color-error-text);
+  background: var(--color-surface-error);
 }
 
 .dashboard-warning {
-  color: #f8d5a8;
-  background: #2b2116;
+  color: var(--color-warning-text);
+  background: var(--color-surface-warning);
 }
 
 /* The panel fades in from transparent instead of starting on a flat edge, so the
@@ -208,7 +208,7 @@
 .filter-field span {
   display: block;
   margin: 0 0 5px 3px;
-  color: #718092;
+  color: var(--color-text-9);
   font-size: 0.62rem;
   font-weight: 650;
   text-shadow: 0 1px 3px rgb(4 8 14 / 85%);
@@ -223,21 +223,21 @@
   min-width: 0;
   height: 38px;
   padding: 0 28px 0 10px;
-  color: #d5dde7;
+  color: var(--color-text-2);
   border: 1px solid transparent;
   border-radius: 9px;
   outline: none;
-  background: #151e29;
+  background: var(--color-surface-control);
   font-size: 0.75rem;
 }
 
 .filter-field select:focus {
-  border-color: #65d6ad;
-  box-shadow: 0 0 0 3px #65d6ad18;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-focus-ring);
 }
 
 .filter-field select:disabled {
-  color: #8996a5;
+  color: var(--color-text-7);
   cursor: default;
 }
 
@@ -255,21 +255,21 @@
 }
 
 .metric > span {
-  color: #758396;
+  color: var(--color-text-9);
   font-size: 0.68rem;
   font-weight: 650;
 }
 
 .metric > strong {
   margin-top: 5px;
-  color: #f0f6fc;
+  color: var(--color-text-1);
   font-size: clamp(1.12rem, 1.7vw, 1.65rem);
   letter-spacing: -0.035em;
 }
 
 .metric > small {
   margin-top: 3px;
-  color: #758396;
+  color: var(--color-text-9);
   font-size: 0.64rem;
 }
 
@@ -281,7 +281,7 @@
 
 .dashboard-panel {
   border-radius: 12px;
-  background: #101720;
+  background: var(--color-surface-raised);
 }
 
 .chart-panel {
@@ -293,7 +293,7 @@
   display: grid;
   height: 340px;
   place-items: center;
-  color: #667486;
+  color: var(--color-text-10);
   font-size: 0.75rem;
 }
 
@@ -303,14 +303,14 @@
 
 .panel-heading h2 {
   margin: 0;
-  color: #e8eef5;
+  color: var(--color-text-1);
   font-size: 0.96rem;
   letter-spacing: -0.015em;
 }
 
 .panel-heading p {
   margin: 4px 0 0;
-  color: #6f7c8d;
+  color: var(--color-text-9);
   font-size: 0.7rem;
 }
 
@@ -361,19 +361,19 @@ table {
 th,
 td {
   padding: 13px 11px;
-  border-top: 1px solid #19232e;
+  border-top: 1px solid var(--color-border);
   text-align: left;
   white-space: nowrap;
 }
 
 th {
-  color: #6f7c8d;
+  color: var(--color-text-9);
   font-size: 0.63rem;
   font-weight: 650;
 }
 
 td {
-  color: #adb8c5;
+  color: var(--color-text-5);
 }
 
 td strong,
@@ -382,7 +382,7 @@ td small {
 }
 
 td strong {
-  color: #dfe6ee;
+  color: var(--color-text-1);
   font-size: 0.76rem;
 }
 
@@ -390,7 +390,7 @@ td small {
   max-width: 360px;
   margin-top: 4px;
   overflow: hidden;
-  color: #687688;
+  color: var(--color-text-10);
   font-size: 0.66rem;
   text-overflow: ellipsis;
 }
@@ -417,7 +417,7 @@ td small {
   display: grid;
   width: 16px;
   place-items: center;
-  color: #65d6ad;
+  color: var(--color-accent);
   font-size: 1rem;
 }
 
@@ -432,7 +432,7 @@ td small {
 
 .agent-detail-row td {
   padding: 8px 16px 18px 42px;
-  background: #0c131a;
+  background: var(--color-surface-subtle);
 }
 
 .agent-list {
@@ -446,7 +446,7 @@ td small {
   align-items: center;
   gap: 16px;
   padding: 9px 12px;
-  background: #111a23;
+  background: var(--color-surface-elevated);
 }
 
 .agent-type,
@@ -454,7 +454,7 @@ td small {
   display: inline-block;
   width: fit-content;
   padding: 2px 0;
-  color: #aab5c2;
+  color: var(--color-badge-neutral);
   font-size: 0.58rem;
   font-weight: 700;
 }
@@ -462,24 +462,24 @@ td small {
 .agent-type--main,
 .rate-badge--exact,
 .rate-badge--override {
-  color: #82e0bf;
+  color: var(--color-badge-primary);
 }
 
 .agent-type--sub,
 .rate-badge--bundled,
 .rate-badge--inferred {
-  color: #c7bcff;
+  color: var(--color-badge-derived);
 }
 
 .rate-cell {
-  color: #c5d0dc;
+  color: var(--color-text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .empty-table,
 .agent-error {
   padding: 28px;
-  color: #6f7c8d;
+  color: var(--color-text-9);
   text-align: center;
 }
 
@@ -489,7 +489,7 @@ td small {
   justify-content: center;
   gap: 8px 22px;
   padding: 22px 0 0;
-  color: #596778;
+  color: var(--color-text-11);
   font-size: 0.68rem;
 }
 

@@ -1,14 +1,10 @@
 import { expect, mock } from "bun:test";
 import { render, screen, waitFor } from "@testing-library/react";
+import { CostChartDouble } from "../../dashboard/cost-chart-double";
 
 // Registered here rather than in the test file so it is always in place before the
-// dynamic import of `Dashboard` below. The real chart draws to a canvas through echarts,
-// which happy-dom cannot provide and which would not paint identically twice anyway.
-mock.module("../../../src/dashboard/CostChart", () => ({
-  CostChart: ({ kind }: { kind: string }) => (
-    <div data-testid={`${kind}-chart`} style={{ height: "260px" }} />
-  ),
-}));
+// dynamic import of `Dashboard` below.
+mock.module("../../../src/dashboard/CostChart", () => ({ CostChart: CostChartDouble }));
 
 /**
  * Frozen responses for a capture. Deliberately separate from the fixtures in
