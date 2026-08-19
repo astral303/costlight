@@ -1,6 +1,73 @@
 :root {
-  color: #e6edf3;
-  background: #0d1117;
+  /* Base page palette */
+  --color-page-bg: #0d1117;
+  --color-app-bg: #0b1016;
+  --color-surface-raised: #101720;
+  --color-surface-elevated: #111a23;
+  --color-surface-subtle: #0c131a;
+  --color-surface-control: #151e29;
+  --color-surface-button: #141d27;
+  --color-surface-overlay: #18222d;
+  --color-surface-warning: #2b2116;
+  --color-surface-error: #301818;
+
+  --color-border: #19232e;
+  --color-border-strong: #2a3544;
+  --color-border-quiet: #4c5866;
+  --color-divider-soft: #354253;
+
+  --color-text: #e6edf3;
+  --color-text-emphasis: #f0f6fc;
+  --color-text-strong: #d5dde7;
+  --color-text-main: #e8eef5;
+  --color-text-subtle: #aeb9c6;
+  --color-text-soft: #9aa7b6;
+  --color-text-muted: #718092;
+  --color-text-faint: #6f7c8d;
+  --color-text-on-accent: #081611;
+
+  --color-selection-text: color-mix(in oklab, var(--color-text-subtle) 86%, #fff 14%);
+  --color-selection-bg: #65d6ad;
+
+  --color-success: #65d6ad;
+  --color-success-soft: rgb(from var(--color-success) r g b / 0.12);
+  --color-success-shadow: color-mix(in oklab, var(--color-success) 15%, transparent 85%);
+  --color-success-focus: color-mix(in oklab, var(--color-success) 80%, var(--color-text) 20%);
+  --color-success-dim: #82e0bf;
+  --color-warning: #f0a04b;
+  --color-warning-soft: color-mix(in oklab, var(--color-warning) 10%, transparent);
+  --color-warning-text: #f8d5a8;
+  --color-error-text: #ffd5d5;
+
+  --color-secondary: #42a5c6;
+  --color-tertiary: #8b7cf6;
+  --color-info: #f5f7fa;
+
+  /* Chart palette keeps the series stable while staying token-driven. */
+  --color-chart-series-1: var(--color-success);
+  --color-chart-series-2: var(--color-secondary);
+  --color-chart-series-3: var(--color-tertiary);
+  --color-chart-series-4: var(--color-warning);
+  --color-chart-series-5: var(--color-info);
+  --color-chart-datazoom-bg: #0d131b;
+  --color-chart-datazoom-filler: var(--color-success-soft);
+  --color-chart-datazoom-handle: var(--color-success);
+  --color-chart-label: var(--color-text-soft);
+  --color-chart-legend-text: #9aa7b6;
+  --color-chart-legend-border: #4c5866;
+  --color-chart-tooltip-bg: rgba(17, 24, 33, 0.949);
+  --color-chart-tooltip-text: var(--color-text);
+  --color-chart-tooltip-border: var(--color-divider-soft);
+  --color-chart-axis-line: var(--color-border-strong);
+  --color-chart-axis-pointer-label: color-mix(in oklab, var(--color-surface-elevated) 78%, var(--color-surface-control) 22%);
+  --color-chart-axis-pointer-outline: var(--color-info);
+  --color-gradient-filter-start: color-mix(in oklab, var(--color-app-bg) 95%, transparent 5%);
+  --color-gradient-filter-mid: color-mix(in oklab, var(--color-app-bg) 42%, transparent 58%);
+  --color-gradient-filter-end: color-mix(in oklab, var(--color-app-bg) 20%, transparent 80%);
+  --color-text-shadow: color-mix(in oklab, black 85%, transparent 15%);
+
+  color: var(--color-text);
+  background: var(--color-page-bg);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -15,7 +82,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #0b1016;
+  background: var(--color-app-bg);
 }
 
 button,
@@ -30,6 +97,6 @@ select {
 }
 
 ::selection {
-  color: #07110d;
-  background: #65d6ad;
+  color: var(--color-selection-text);
+  background: var(--color-selection-bg);
 }

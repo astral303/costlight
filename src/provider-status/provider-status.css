@@ -8,7 +8,7 @@
   position: relative;
   z-index: 30;
   min-width: 180px;
-  color: #7d8998;
+  color: var(--color-text-subtle);
 }
 
 .provider-status summary {
@@ -28,8 +28,8 @@
   right: 2px;
   width: 6px;
   height: 6px;
-  border-right: 2px solid #f0f6fc;
-  border-bottom: 2px solid #f0f6fc;
+  border-right: 2px solid var(--color-text-emphasis);
+  border-bottom: 2px solid var(--color-text-emphasis);
   content: "";
   transform: rotate(45deg);
   transform-origin: 65% 65%;
@@ -41,7 +41,7 @@
 
 .provider-status summary:focus-visible {
   border-radius: 3px;
-  outline: 2px solid #65d6ad;
+  outline: 2px solid var(--color-success);
   outline-offset: 3px;
 }
 
@@ -57,7 +57,7 @@
 }
 
 .provider-status strong {
-  color: #f0f6fc;
+  color: var(--color-text-emphasis);
   font-size: 0.74rem;
 }
 
@@ -71,7 +71,7 @@
 }
 
 .provider-status.has-warning small {
-  color: #f0a04b;
+  color: var(--color-warning);
 }
 
 .provider-status__info {
@@ -79,7 +79,7 @@
   width: 12px;
   height: 12px;
   place-items: center;
-  color: #aeb9c6;
+  color: var(--color-text-subtle);
   border: 1px solid currentColor;
   border-radius: 50%;
   cursor: help;
@@ -89,7 +89,7 @@
 }
 
 .provider-status__info:focus-visible {
-  outline: 2px solid #65d6ad;
+  outline: 2px solid var(--color-success);
   outline-offset: 2px;
 }
 
@@ -102,30 +102,30 @@
   max-width: min(320px, calc(100vw - 36px));
   padding: 10px;
   border-radius: 9px;
-  background: #18222d;
+  background: var(--color-surface-overlay);
 }
 
 .provider-status__menu p {
   max-width: 280px;
   margin: 0 0 9px;
-  color: #aeb9c6;
+  color: var(--color-text-subtle);
   font-size: 0.66rem;
   line-height: 1.4;
 }
 
 .provider-status__menu button {
   padding: 7px 10px;
-  color: #081611;
+  color: var(--color-text-on-accent);
   border: 0;
   border-radius: 7px;
-  background: #65d6ad;
+  background: var(--color-success);
   cursor: pointer;
   font-size: 0.68rem;
   font-weight: 700;
 }
 
 .provider-status__menu button:focus-visible {
-  outline: 2px solid #f0f6fc;
+  outline: 2px solid var(--color-text-emphasis);
   outline-offset: 2px;
 }
 

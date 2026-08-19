@@ -8,11 +8,11 @@
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: #f0a04b;
+  background: var(--color-warning);
 }
 
 .connection-status__dot.is-connected {
-  background: #65d6ad;
+  background: var(--color-success);
 }
 
 /* In the dashboard header this sits over the lit water behind it, so both lines
@@ -24,12 +24,12 @@
 }
 
 .connection-status strong {
-  color: #f0f6fc;
+  color: var(--color-text-emphasis);
   font-size: 0.74rem;
 }
 
 .connection-status small {
   margin-top: 2px;
-  color: #7d8998;
+  color: var(--color-text-subtle);
   font-size: 0.64rem;
 }
