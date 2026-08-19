@@ -31,6 +31,41 @@ import "./cost-chart.css";
 const CHART_GROUP = "costlight";
 let areChartsConnected = false;
 
+/**
+ * A categorical scale: adjacent series only have to stay apart from one another. These
+ * deliberately do not track the UI palette — series 1 sharing the brand green is a
+ * coincidence of value, not a shared meaning, and tying them would move the chart
+ * whenever a status colour was retuned.
+ */
+export const CHART_SERIES_COLORS = ["#65d6ad", "#42a5c6", "#8b7cf6", "#f0a04b", "#f5f7fa"];
+
+/**
+ * Chart chrome, which does mirror the interface: the gridline is the table's row rule and
+ * the zoom handle is the same accent as a focus ring. `chart-palette.test.ts` asserts the
+ * pairs that have to move together.
+ *
+ * Held here rather than read from CSS custom properties because echarts parses these
+ * itself, and zrender rejects everything a stylesheet would hand back once tokens carry
+ * transforms — `color-mix()`, `rgb(from …)` and the `oklab()` that registered properties
+ * resolve to all parse as undefined.
+ */
+export const CHART_CHROME = {
+  axisLabel: "#738092",
+  axisLine: "#2a3544",
+  axisPointerLabel: "#273444",
+  gridLine: "#19232e",
+  legendText: "#9aa7b6",
+  legendTextInactive: "#4c5866",
+  toolboxIcon: "#9aa7b6",
+  toolboxIconEmphasis: "#f5f7fa",
+  tooltipBackground: "#111821f2",
+  tooltipBorder: "#354253",
+  tooltipText: "#e6edf3",
+  zoomBackground: "#0d131b",
+  zoomFill: "#65d6ad20",
+  zoomHandle: "#65d6ad",
+};
+
 type CostChartOption = ComposeOption<
   | AriaComponentOption
   | BarSeriesOption
@@ -138,7 +173,6 @@ export function createChartOption(
   kind: CostChartProps["kind"],
   zoomRange?: ChartZoomRange,
 ): CostChartOption {
-  const theme = getThemeColors();
   const prefix = kind === "cumulative" ? "cumulative" : "";
   const dimension = (component: "CacheCreation" | "CacheRead" | "Input" | "Output" | "Total") => {
     if (prefix === "") {
@@ -167,7 +201,7 @@ export function createChartOption(
     animationDurationUpdate: 260,
     aria: { enabled: true },
     backgroundColor: "transparent",
-    color: theme.seriesColors,
+    color: CHART_SERIES_COLORS,
     dataset: {
       dimensions: ["observation", "time", "uncachedInput", "cacheCreation", "cacheRead", "output", "total"],
       source: rows,
@@ -179,11 +213,11 @@ export function createChartOption(
         bottom: 4,
         height: 18,
         borderColor: "transparent",
-        backgroundColor: theme.dataZoomBackground,
-        fillerColor: theme.dataZoomFill,
-        handleStyle: { color: theme.success },
+        backgroundColor: CHART_CHROME.zoomBackground,
+        fillerColor: CHART_CHROME.zoomFill,
+        handleStyle: { color: CHART_CHROME.zoomHandle },
         showDetail: false,
-        textStyle: { color: theme.axisLabel, fontSize: 9 },
+        textStyle: { color: CHART_CHROME.axisLabel, fontSize: 9 },
         ...zoomRange,
       },
     ],
@@ -193,11 +227,11 @@ export function createChartOption(
       itemHeight: 7,
       itemWidth: 16,
       left: 0,
-      pageIconColor: theme.legendText,
-      pageIconInactiveColor: theme.legendBorder,
-      pageTextStyle: { color: theme.axisLabel, fontSize: 9 },
+      pageIconColor: CHART_CHROME.legendText,
+      pageIconInactiveColor: CHART_CHROME.legendTextInactive,
+      pageTextStyle: { color: CHART_CHROME.axisLabel, fontSize: 9 },
       right: 60,
-      textStyle: { color: theme.legendText, fontSize: 10 },
+      textStyle: { color: CHART_CHROME.legendText, fontSize: 10 },
       top: 4,
       type: "scroll",
     },
@@ -226,23 +260,23 @@ export function createChartOption(
       ],
     tooltip: {
       axisPointer: { type: kind === "bucket" ? "shadow" : "line" },
-      backgroundColor: theme.tooltipBg,
-      borderColor: theme.tooltipBorder,
+      backgroundColor: CHART_CHROME.tooltipBackground,
+      borderColor: CHART_CHROME.tooltipBorder,
       formatter: (parameters: unknown) => formatChartTooltip(parameters, rows),
-      textStyle: { color: theme.text },
+      textStyle: { color: CHART_CHROME.tooltipText },
       trigger: "axis",
     },
     toolbox: {
-      emphasis: { iconStyle: { borderColor: theme.text } },
+      emphasis: { iconStyle: { borderColor: CHART_CHROME.toolboxIconEmphasis } },
       feature: {
         dataZoom: {
-          brushStyle: { borderColor: theme.success, color: theme.dataZoomFill },
+          brushStyle: { borderColor: CHART_CHROME.zoomHandle, color: CHART_CHROME.zoomFill },
           title: { back: "Undo zoom", zoom: "Drag to zoom" },
           xAxisIndex: 0,
           yAxisIndex: "none",
         },
       },
-      iconStyle: { borderColor: theme.legendText },
+      iconStyle: { borderColor: CHART_CHROME.toolboxIcon },
       itemGap: 8,
       itemSize: 14,
       right: 12,
@@ -250,14 +284,14 @@ export function createChartOption(
     },
     xAxis: {
       axisLabel: {
-        color: theme.axisLabel,
+        color: CHART_CHROME.axisLabel,
         formatter: (value) => formatAxisValue(rows, value, "axis"),
         hideOverlap: true,
       },
-      axisLine: { lineStyle: { color: theme.axisLine } },
+      axisLine: { lineStyle: { color: CHART_CHROME.axisLine } },
       axisPointer: {
         label: {
-          backgroundColor: theme.axisPointerLabel,
+          backgroundColor: CHART_CHROME.axisPointerLabel,
           formatter: (parameters) => formatAxisValue(rows, parameters.value, "tooltip"),
         },
       },
@@ -266,95 +300,10 @@ export function createChartOption(
       type: "category",
     },
     yAxis: {
-      axisLabel: { color: theme.axisLabel, formatter: (value: number) => formatChartUsd(value) },
-      splitLine: { lineStyle: { color: theme.axisLineGrid } },
+      axisLabel: { color: CHART_CHROME.axisLabel, formatter: (value: number) => formatChartUsd(value) },
+      splitLine: { lineStyle: { color: CHART_CHROME.gridLine } },
       type: "value",
     },
-  };
-}
-
-type ComputedStyleRecord = {
-  [key: string]: string;
-};
-
-const CHART_THEME_FALLBACKS: ComputedStyleRecord = {
-  "--color-success": "#65d6ad",
-  "--color-chart-series-1": "#65d6ad",
-  "--color-chart-series-2": "#42a5c6",
-  "--color-chart-series-3": "#8b7cf6",
-  "--color-chart-series-4": "#f0a04b",
-  "--color-chart-series-5": "#f5f7fa",
-  "--color-chart-datazoom-bg": "#0d131b",
-  "--color-chart-datazoom-filler": "#65d6ad20",
-  "--color-chart-label": "#738092",
-  "--color-chart-legend-text": "#9aa7b6",
-  "--color-chart-legend-border": "#4c5866",
-  "--color-chart-tooltip-bg": "#111821f2",
-  "--color-chart-tooltip-border": "#354253",
-  "--color-text": "#e6edf3",
-  "--color-chart-axis-line": "#2a3544",
-  "--color-chart-axis-pointer-label": "#273444",
-  "--color-border": "#19232e",
-};
-
-interface ChartTheme {
-  axisLabel: string;
-  axisLine: string;
-  axisLineGrid: string;
-  axisPointerLabel: string;
-  dataZoomBackground: string;
-  dataZoomFill: string;
-  legendBorder: string;
-  legendText: string;
-  seriesColors: string[];
-  success: string;
-  text: string;
-  tooltipBg: string;
-  tooltipBorder: string;
-}
-
-function getThemeColors(): ChartTheme {
-  const readThemeColor = (name: string, fallback: string): string => {
-    if (typeof document === "undefined") {
-      return fallback;
-    }
-    const rootStyles = getComputedStyle(document.documentElement);
-    const value = rootStyles.getPropertyValue(name).trim();
-    return value === "" ? fallback : value;
-  };
-
-  return {
-    axisLabel: readThemeColor("--color-chart-label", CHART_THEME_FALLBACKS["--color-chart-label"]),
-    axisLine: readThemeColor("--color-chart-axis-line", CHART_THEME_FALLBACKS["--color-chart-axis-line"]),
-    axisLineGrid: readThemeColor("--color-border", CHART_THEME_FALLBACKS["--color-border"]),
-    axisPointerLabel: readThemeColor(
-      "--color-chart-axis-pointer-label",
-      CHART_THEME_FALLBACKS["--color-chart-axis-pointer-label"],
-    ),
-    dataZoomBackground: readThemeColor(
-      "--color-chart-datazoom-bg",
-      CHART_THEME_FALLBACKS["--color-chart-datazoom-bg"],
-    ),
-    dataZoomFill: readThemeColor("--color-chart-datazoom-filler", CHART_THEME_FALLBACKS["--color-chart-datazoom-filler"]),
-    legendBorder: readThemeColor(
-      "--color-chart-legend-border",
-      CHART_THEME_FALLBACKS["--color-chart-legend-border"],
-    ),
-    legendText: readThemeColor("--color-chart-legend-text", CHART_THEME_FALLBACKS["--color-chart-legend-text"]),
-    seriesColors: [
-      readThemeColor("--color-chart-series-1", CHART_THEME_FALLBACKS["--color-chart-series-1"]),
-      readThemeColor("--color-chart-series-2", CHART_THEME_FALLBACKS["--color-chart-series-2"]),
-      readThemeColor("--color-chart-series-3", CHART_THEME_FALLBACKS["--color-chart-series-3"]),
-      readThemeColor("--color-chart-series-4", CHART_THEME_FALLBACKS["--color-chart-series-4"]),
-      readThemeColor("--color-chart-series-5", CHART_THEME_FALLBACKS["--color-chart-series-5"]),
-    ],
-    success: readThemeColor("--color-success", CHART_THEME_FALLBACKS["--color-success"]),
-    text: readThemeColor("--color-text", CHART_THEME_FALLBACKS["--color-text"]),
-    tooltipBg: readThemeColor("--color-chart-tooltip-bg", CHART_THEME_FALLBACKS["--color-chart-tooltip-bg"]),
-    tooltipBorder: readThemeColor(
-      "--color-chart-tooltip-border",
-      CHART_THEME_FALLBACKS["--color-chart-tooltip-border"],
-    ),
   };
 }
 
