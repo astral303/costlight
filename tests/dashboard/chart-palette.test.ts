@@ -1,34 +1,35 @@
 import { describe, expect, test } from "bun:test";
-import { join } from "node:path";
 import { CHART_CHROME, CHART_SERIES_COLORS } from "../../src/dashboard/chart-palette";
-
-const APPLICATION_CSS = join(import.meta.dir, "..", "..", "src", "app", "application.css");
-
-async function readToken(name: string): Promise<string> {
-  const stylesheet = await Bun.file(APPLICATION_CSS).text();
-  const declaration = stylesheet.match(new RegExp(`${name}:\\s*([^;]+);`));
-  if (declaration?.[1] === undefined) {
-    throw new Error(`${name} is not defined in application.css`);
-  }
-  return declaration[1].trim();
-}
+import { resolvePalette, toSrgbHex } from "../palette/support/resolve-palette";
 
 /**
  * echarts parses its own colours, so the chart cannot read these from the stylesheet at
  * runtime. These assertions stand in for that link: where a chart colour is the same
  * colour as part of the interface, changing one without the other should fail here.
+ *
+ * Compared as resolved colours rather than as source text, so a token that becomes a step
+ * between anchors still reports a colour mismatch rather than a parse failure.
  */
 describe("chart chrome tracks the interface palette", () => {
-  test("the gridline is the table's row rule", async () => {
-    expect(CHART_CHROME.gridLine).toBe(await readToken("--color-border"));
-  });
+  const mirrored: Record<string, string> = {
+    gridLine: "--color-border",
+    tooltipText: "--color-text-1",
+    zoomHandle: "--color-accent",
+  };
 
-  test("tooltip text is body text", async () => {
-    expect(CHART_CHROME.tooltipText).toBe(await readToken("--color-text-1"));
-  });
+  test("holds the same colour as the token each part mirrors", async () => {
+    const palette = await resolvePalette();
+    const drifted = Object.entries(mirrored)
+      .map(([part, name]) => ({
+        part,
+        chart: toSrgbHex(CHART_CHROME[part as keyof typeof CHART_CHROME]),
+        token: (palette.get(name) as { hex: string }).hex,
+        name,
+      }))
+      .filter(({ chart, token }) => chart !== token)
+      .map(({ part, chart, name, token }) => `${part} is ${chart}, but ${name} is ${token}`);
 
-  test("the zoom handle is the interactive accent", async () => {
-    expect(CHART_CHROME.zoomHandle).toBe(await readToken("--color-accent"));
+    expect(drifted).toEqual([]);
   });
 });
 

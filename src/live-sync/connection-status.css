@@ -20,7 +20,7 @@
 .connection-status strong,
 .connection-status small {
   display: block;
-  text-shadow: 0 1px 3px rgb(4 8 14 / 85%);
+  text-shadow: var(--text-shadow-over-artwork);
 }
 
 .connection-status strong {
