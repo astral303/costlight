@@ -12,28 +12,28 @@
 
   --color-border: #19232e;
 
-  --color-text: #e6edf3;
-  --color-text-emphasis: #f0f6fc;
-  --color-text-strong: #d5dde7;
-  --color-text-subtle: #aeb9c6;
-  --color-text-soft: #9aa7b6;
-  --color-text-muted: #718092;
-  --color-text-faint: #6f7c8d;
+  /* Neutral text ramp, brightest first. Eleven ordinal steps spaced an even 5.04 L*
+     apart, because relative dimness is the only property consumers pick on and no
+     adjective set conveys an order. Step 4 has no consumer; it is kept so the
+     spacing stays arithmetic and each step can become a transform of step 1. */
+  --color-text-1: #e6edf3;
+  --color-text-2: #d7dfe6;
+  --color-text-3: #c8d1d9;
+  --color-text-4: #bac3cd;
+  --color-text-5: #abb5c0;
+  --color-text-6: #9da7b4;
+  --color-text-7: #8f9aa7;
+  --color-text-8: #818d9b;
+  --color-text-9: #74808f;
+  --color-text-10: #667384;
+  --color-text-11: #596778;
+
   /* Near-black green: the only text that sits on an accent fill. */
   --color-text-on-accent: #081611;
-  --color-text-disabled: #8996a5;
-  --color-text-metric-label: #758396;
-  --color-text-placeholder: #667486;
-  --color-text-status: #7d8998;
-  --color-text-footer: #596778;
 
-  --color-table-cell: #adb8c5;
-  --color-table-cell-emphasis: #dfe6ee;
-  --color-table-cell-caption: #687688;
-  --color-table-rate: #c5d0dc;
-
-  /* Classification markers: primary agents and exact rates against derived ones. */
-  --color-badge-neutral: #aab5c2;
+  /* Classification markers: primary agents and exact rates against derived ones.
+     Neutral is a ramp step; the other two carry hue, which is the distinction. */
+  --color-badge-neutral: var(--color-text-5);
   --color-badge-primary: #82e0bf;
   --color-badge-derived: #c7bcff;
 
@@ -47,7 +47,7 @@
   --color-warning-text: #f8d5a8;
   --color-error-text: #ffd5d5;
 
-  color: var(--color-text);
+  color: var(--color-text-1);
   background: var(--color-page-bg);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
