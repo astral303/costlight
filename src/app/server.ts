@@ -4,7 +4,7 @@ import { CallLedger } from "../call-accounting/ledger";
 import { handleDashboardRoute } from "../dashboard/routes";
 import { RotatingErrorLog, type ErrorLogContext } from "../error-logging/rotating-error-log";
 import { LiveUpdateHub } from "../live-sync/hub";
-import { handleLiveRoute } from "../live-sync/routes";
+import { handleLiveRoute, isSSEStreamRequest } from "../live-sync/routes";
 import { MeteredUsageService } from "../metered-usage/service";
 import { isProMeteredClaudeModel } from "../pricing/anthropic-catalog";
 import { PricingCatalog } from "../pricing/catalog";
@@ -65,8 +65,12 @@ const requestDrain = new OperationDrain();
 const server = Bun.serve({
   hostname: options.host,
   port: options.port,
-  fetch(request) {
-    return requestDrain.tryRun(() => handleRequest(request))
+  fetch(request, server) {
+    const url = new URL(request.url);
+    if (isSSEStreamRequest(request, url)) {
+      server.timeout(request, 0);
+    }
+    return requestDrain.tryRun(() => handleRequest(request, url))
       ?? withSecurityHeaders(Response.json(
         { error: "Server is shutting down" },
         { status: 503, headers: { Connection: "close" } },
@@ -114,10 +118,9 @@ function requestShutdown(): void {
 process.once("SIGINT", requestShutdown);
 process.once("SIGTERM", requestShutdown);
 
-async function handleRequest(request: Request): Promise<Response> {
+async function handleRequest(request: Request, url: URL): Promise<Response> {
   let requestPath = "unknown";
   try {
-    const url = new URL(request.url);
     requestPath = url.pathname;
     if (!isAuthorized(request)) {
       return withSecurityHeaders(Response.json(
