@@ -1,12 +1,9 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { APPLICATION_VERSION } from "../../src/app-version/browser-version";
+import { CostChartDouble } from "./cost-chart-double";
 
-mock.module("../../src/dashboard/CostChart", () => ({
-  CostChart: ({ kind, zoomContext }: { kind: string; zoomContext: string }) => (
-    <div data-testid={`${kind}-chart`} data-zoom-context={zoomContext} />
-  ),
-}));
+mock.module("../../src/dashboard/CostChart", () => ({ CostChart: CostChartDouble }));
 
 class FakeEventSource {
   static readonly instances: FakeEventSource[] = [];
