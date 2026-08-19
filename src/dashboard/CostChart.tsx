@@ -138,6 +138,7 @@ export function createChartOption(
   kind: CostChartProps["kind"],
   zoomRange?: ChartZoomRange,
 ): CostChartOption {
+  const theme = getThemeColors();
   const prefix = kind === "cumulative" ? "cumulative" : "";
   const dimension = (component: "CacheCreation" | "CacheRead" | "Input" | "Output" | "Total") => {
     if (prefix === "") {
@@ -166,7 +167,7 @@ export function createChartOption(
     animationDurationUpdate: 260,
     aria: { enabled: true },
     backgroundColor: "transparent",
-    color: ["#65d6ad", "#42a5c6", "#8b7cf6", "#f0a04b", "#f5f7fa"],
+    color: theme.seriesColors,
     dataset: {
       dimensions: ["observation", "time", "uncachedInput", "cacheCreation", "cacheRead", "output", "total"],
       source: rows,
@@ -178,11 +179,11 @@ export function createChartOption(
         bottom: 4,
         height: 18,
         borderColor: "transparent",
-        backgroundColor: "#0d131b",
-        fillerColor: "#65d6ad20",
-        handleStyle: { color: "#65d6ad" },
+        backgroundColor: theme.dataZoomBackground,
+        fillerColor: theme.dataZoomFill,
+        handleStyle: { color: theme.success },
         showDetail: false,
-        textStyle: { color: "#738092", fontSize: 9 },
+        textStyle: { color: theme.axisLabel, fontSize: 9 },
         ...zoomRange,
       },
     ],
@@ -192,11 +193,11 @@ export function createChartOption(
       itemHeight: 7,
       itemWidth: 16,
       left: 0,
-      pageIconColor: "#9aa7b6",
-      pageIconInactiveColor: "#4c5866",
-      pageTextStyle: { color: "#738092", fontSize: 9 },
+      pageIconColor: theme.legendText,
+      pageIconInactiveColor: theme.legendBorder,
+      pageTextStyle: { color: theme.axisLabel, fontSize: 9 },
       right: 60,
-      textStyle: { color: "#9aa7b6", fontSize: 10 },
+      textStyle: { color: theme.legendText, fontSize: 10 },
       top: 4,
       type: "scroll",
     },
@@ -225,23 +226,23 @@ export function createChartOption(
       ],
     tooltip: {
       axisPointer: { type: kind === "bucket" ? "shadow" : "line" },
-      backgroundColor: "#111821f2",
-      borderColor: "#354253",
+      backgroundColor: theme.tooltipBg,
+      borderColor: theme.tooltipBorder,
       formatter: (parameters: unknown) => formatChartTooltip(parameters, rows),
-      textStyle: { color: "#e6edf3" },
+      textStyle: { color: theme.text },
       trigger: "axis",
     },
     toolbox: {
-      emphasis: { iconStyle: { borderColor: "#f5f7fa" } },
+      emphasis: { iconStyle: { borderColor: theme.text } },
       feature: {
         dataZoom: {
-          brushStyle: { borderColor: "#65d6ad", color: "#65d6ad20" },
+          brushStyle: { borderColor: theme.success, color: theme.dataZoomFill },
           title: { back: "Undo zoom", zoom: "Drag to zoom" },
           xAxisIndex: 0,
           yAxisIndex: "none",
         },
       },
-      iconStyle: { borderColor: "#9aa7b6" },
+      iconStyle: { borderColor: theme.legendText },
       itemGap: 8,
       itemSize: 14,
       right: 12,
@@ -249,14 +250,14 @@ export function createChartOption(
     },
     xAxis: {
       axisLabel: {
-        color: "#738092",
+        color: theme.axisLabel,
         formatter: (value) => formatAxisValue(rows, value, "axis"),
         hideOverlap: true,
       },
-      axisLine: { lineStyle: { color: "#2a3544" } },
+      axisLine: { lineStyle: { color: theme.axisLine } },
       axisPointer: {
         label: {
-          backgroundColor: "#273444",
+          backgroundColor: theme.axisPointerLabel,
           formatter: (parameters) => formatAxisValue(rows, parameters.value, "tooltip"),
         },
       },
@@ -265,10 +266,95 @@ export function createChartOption(
       type: "category",
     },
     yAxis: {
-      axisLabel: { color: "#738092", formatter: (value: number) => formatChartUsd(value) },
-      splitLine: { lineStyle: { color: "#19232e" } },
+      axisLabel: { color: theme.axisLabel, formatter: (value: number) => formatChartUsd(value) },
+      splitLine: { lineStyle: { color: theme.axisLineGrid } },
       type: "value",
     },
+  };
+}
+
+type ComputedStyleRecord = {
+  [key: string]: string;
+};
+
+const CHART_THEME_FALLBACKS: ComputedStyleRecord = {
+  "--color-success": "#65d6ad",
+  "--color-chart-series-1": "#65d6ad",
+  "--color-chart-series-2": "#42a5c6",
+  "--color-chart-series-3": "#8b7cf6",
+  "--color-chart-series-4": "#f0a04b",
+  "--color-chart-series-5": "#f5f7fa",
+  "--color-chart-datazoom-bg": "#0d131b",
+  "--color-chart-datazoom-filler": "#65d6ad20",
+  "--color-chart-label": "#738092",
+  "--color-chart-legend-text": "#9aa7b6",
+  "--color-chart-legend-border": "#4c5866",
+  "--color-chart-tooltip-bg": "#111821f2",
+  "--color-chart-tooltip-border": "#354253",
+  "--color-text": "#e6edf3",
+  "--color-chart-axis-line": "#2a3544",
+  "--color-chart-axis-pointer-label": "#273444",
+  "--color-border": "#19232e",
+};
+
+interface ChartTheme {
+  axisLabel: string;
+  axisLine: string;
+  axisLineGrid: string;
+  axisPointerLabel: string;
+  dataZoomBackground: string;
+  dataZoomFill: string;
+  legendBorder: string;
+  legendText: string;
+  seriesColors: string[];
+  success: string;
+  text: string;
+  tooltipBg: string;
+  tooltipBorder: string;
+}
+
+function getThemeColors(): ChartTheme {
+  const readThemeColor = (name: string, fallback: string): string => {
+    if (typeof document === "undefined") {
+      return fallback;
+    }
+    const rootStyles = getComputedStyle(document.documentElement);
+    const value = rootStyles.getPropertyValue(name).trim();
+    return value === "" ? fallback : value;
+  };
+
+  return {
+    axisLabel: readThemeColor("--color-chart-label", CHART_THEME_FALLBACKS["--color-chart-label"]),
+    axisLine: readThemeColor("--color-chart-axis-line", CHART_THEME_FALLBACKS["--color-chart-axis-line"]),
+    axisLineGrid: readThemeColor("--color-border", CHART_THEME_FALLBACKS["--color-border"]),
+    axisPointerLabel: readThemeColor(
+      "--color-chart-axis-pointer-label",
+      CHART_THEME_FALLBACKS["--color-chart-axis-pointer-label"],
+    ),
+    dataZoomBackground: readThemeColor(
+      "--color-chart-datazoom-bg",
+      CHART_THEME_FALLBACKS["--color-chart-datazoom-bg"],
+    ),
+    dataZoomFill: readThemeColor("--color-chart-datazoom-filler", CHART_THEME_FALLBACKS["--color-chart-datazoom-filler"]),
+    legendBorder: readThemeColor(
+      "--color-chart-legend-border",
+      CHART_THEME_FALLBACKS["--color-chart-legend-border"],
+    ),
+    legendText: readThemeColor("--color-chart-legend-text", CHART_THEME_FALLBACKS["--color-chart-legend-text"]),
+    seriesColors: [
+      readThemeColor("--color-chart-series-1", CHART_THEME_FALLBACKS["--color-chart-series-1"]),
+      readThemeColor("--color-chart-series-2", CHART_THEME_FALLBACKS["--color-chart-series-2"]),
+      readThemeColor("--color-chart-series-3", CHART_THEME_FALLBACKS["--color-chart-series-3"]),
+      readThemeColor("--color-chart-series-4", CHART_THEME_FALLBACKS["--color-chart-series-4"]),
+      readThemeColor("--color-chart-series-5", CHART_THEME_FALLBACKS["--color-chart-series-5"]),
+    ],
+    success: readThemeColor("--color-success", CHART_THEME_FALLBACKS["--color-success"]),
+    text: readThemeColor("--color-text", CHART_THEME_FALLBACKS["--color-text"]),
+    tooltipBg: readThemeColor("--color-chart-tooltip-bg", CHART_THEME_FALLBACKS["--color-chart-tooltip-bg"]),
+    tooltipBorder: readThemeColor(
+      "--color-chart-tooltip-border",
+      CHART_THEME_FALLBACKS["--color-chart-tooltip-border"],
+    ),
   };
 }
 

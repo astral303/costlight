@@ -1,8 +1,13 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { cleanup } from "@testing-library/react";
 import { buildPage } from "./support/build-page";
+import { captureComputedStyles } from "./support/capture-computed-style";
 import { captureScreenshot, findBrowser } from "./support/capture-screenshot";
-import { compareToBaseline, shouldUpdateBaselines } from "./support/compare-to-baseline";
+import {
+  compareToBaseline,
+  compareToComputedStyleBaseline,
+  shouldUpdateBaselines,
+} from "./support/compare-to-baseline";
 import { renderDashboardMarkup } from "./support/render-dashboard-markup";
 
 /**
@@ -18,6 +23,44 @@ const VIEWPORTS = [
 
 /** Text anti-aliasing drifts by a few pixels; a real layout change moves far more. */
 const MAXIMUM_CHANGED_PIXEL_RATIO = 0.002;
+
+const STYLE_ASSERTED_SELECTORS = [
+  ":root",
+  "body",
+  ".dashboard-shell",
+  ".dashboard-header",
+  ".dashboard-header__water",
+  ".dashboard-header__scene",
+  ".dashboard-header__scene::before",
+  ".dashboard-header__scene::after",
+  ".dashboard-header__water::before",
+  ".dashboard-header__primary",
+  ".dashboard-header__actions",
+  ".rescan-button",
+  ".dashboard-error",
+  ".dashboard-warning",
+  ".filter-bar",
+  ".filter-field span",
+  ".filter-field select",
+  ".metric",
+  ".chart-grid",
+  ".chart-panel",
+  ".chart-loading",
+  ".panel-heading",
+  ".table-panel",
+  ".session-table",
+  ".session-toggle",
+  ".session-toggle__label",
+  ".rate-badge",
+  ".provider-status summary::after",
+  ".provider-status__menu",
+  ".provider-status__info",
+  ".connection-status",
+  ".connection-status strong",
+  ".connection-status small",
+  ".connection-status__dot",
+  ".dashboard-footer",
+];
 
 /**
  * Launching Chromium and rendering usually takes about two seconds, but has been seen
@@ -59,6 +102,28 @@ describe.if(browserPath !== null)("dashboard chrome", () => {
         `${comparison.changedPixels} pixels changed. See ${comparison.failureArtifacts.join(", ")}. `
         + "Re-run with UPDATE_VISUAL_BASELINES=1 once the change is intended.",
       ).toBeLessThanOrEqual(MAXIMUM_CHANGED_PIXEL_RATIO);
+
+      const computedStyles = captureComputedStyles({
+        browserPath: browserPath as string,
+        height: viewport.height,
+        html: buildPage(markup),
+        selectors: STYLE_ASSERTED_SELECTORS,
+        width: viewport.width,
+      });
+      const styleComparison = compareToComputedStyleBaseline(viewport.name, computedStyles);
+
+      expect(
+        styleComparison.isBaselineMissing,
+        `Wrote a new computed-style baseline for ${viewport.name}. Review it, then re-run with `
+        + "UPDATE_VISUAL_BASELINES=1.",
+      ).toBe(false);
+      expect(
+        styleComparison.changedPixelRatio,
+        `${styleComparison.changedProperties.length} computed style values changed: `
+        + `${styleComparison.changedProperties.join(", ")}. `
+        + `See ${styleComparison.failureArtifacts.join(", ")}. `
+        + "Re-run with UPDATE_VISUAL_BASELINES=1 once intended.",
+      ).toBe(0);
     }, CAPTURE_TIMEOUT_MS);
   }
 });

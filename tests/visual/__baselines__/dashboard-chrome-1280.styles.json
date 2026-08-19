@@ -1,284 +1,343 @@
 {
-  "rootColorVariables": {},
+  "rootColorVariables": {
+    "--color-app-bg": "#0b1016",
+    "--color-border": "#19232e",
+    "--color-border-quiet": "#4c5866",
+    "--color-border-strong": "#2a3544",
+    "--color-chart-axis-line": "#2a3544",
+    "--color-chart-axis-pointer-label": "color-mix(in oklab, #111a23 78%, #151e29 22%)",
+    "--color-chart-axis-pointer-outline": "#f5f7fa",
+    "--color-chart-datazoom-bg": "#0d131b",
+    "--color-chart-datazoom-filler": "rgb(from #65d6ad r g b / 0.12)",
+    "--color-chart-datazoom-handle": "#65d6ad",
+    "--color-chart-label": "#9aa7b6",
+    "--color-chart-legend-border": "#4c5866",
+    "--color-chart-legend-text": "#9aa7b6",
+    "--color-chart-series-1": "#65d6ad",
+    "--color-chart-series-2": "#42a5c6",
+    "--color-chart-series-3": "#8b7cf6",
+    "--color-chart-series-4": "#f0a04b",
+    "--color-chart-series-5": "#f5f7fa",
+    "--color-chart-tooltip-bg": "rgba(17, 24, 33, 0.949)",
+    "--color-chart-tooltip-border": "#354253",
+    "--color-chart-tooltip-text": "#e6edf3",
+    "--color-divider-soft": "#354253",
+    "--color-error-text": "#ffd5d5",
+    "--color-gradient-filter-end": "color-mix(in oklab, #0b1016 20%, transparent 80%)",
+    "--color-gradient-filter-mid": "color-mix(in oklab, #0b1016 42%, transparent 58%)",
+    "--color-gradient-filter-start": "color-mix(in oklab, #0b1016 95%, transparent 5%)",
+    "--color-info": "#f5f7fa",
+    "--color-page-bg": "#0d1117",
+    "--color-secondary": "#42a5c6",
+    "--color-selection-bg": "#65d6ad",
+    "--color-selection-text": "color-mix(in oklab, #aeb9c6 86%, #fff 14%)",
+    "--color-success": "#65d6ad",
+    "--color-success-dim": "#82e0bf",
+    "--color-success-focus": "color-mix(in oklab, #65d6ad 80%, #e6edf3 20%)",
+    "--color-success-shadow": "color-mix(in oklab, #65d6ad 15%, transparent 85%)",
+    "--color-success-soft": "rgb(from #65d6ad r g b / 0.12)",
+    "--color-surface-button": "#141d27",
+    "--color-surface-control": "#151e29",
+    "--color-surface-elevated": "#111a23",
+    "--color-surface-error": "#301818",
+    "--color-surface-overlay": "#18222d",
+    "--color-surface-raised": "#101720",
+    "--color-surface-subtle": "#0c131a",
+    "--color-surface-warning": "#2b2116",
+    "--color-tertiary": "#8b7cf6",
+    "--color-text": "#e6edf3",
+    "--color-text-emphasis": "#f0f6fc",
+    "--color-text-faint": "#6f7c8d",
+    "--color-text-main": "#e8eef5",
+    "--color-text-muted": "#718092",
+    "--color-text-on-accent": "#081611",
+    "--color-text-shadow": "color-mix(in oklab, black 85%, transparent 15%)",
+    "--color-text-soft": "#9aa7b6",
+    "--color-text-strong": "#d5dde7",
+    "--color-text-subtle": "#aeb9c6",
+    "--color-warning": "#f0a04b",
+    "--color-warning-soft": "color-mix(in oklab, #f0a04b 10%, transparent)",
+    "--color-warning-text": "#f8d5a8"
+  },
   "selectors": {
-    ":root": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(13, 17, 23)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    "body": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(11, 16, 22)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-shell": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__water": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__scene": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(11, 16, 22)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__scene::before": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__scene::after": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__water::before": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__primary": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-header__actions": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".rescan-button": {
-      "found": true,
-      "color": "rgb(154, 167, 182)",
-      "background-color": "rgb(20, 29, 39)",
-      "border-color": "rgb(154, 167, 182)",
-      "outline-color": "rgb(154, 167, 182)",
-      "text-shadow": "none"
-    },
-    ".dashboard-error": {
-      "found": false,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(13, 17, 23)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".dashboard-warning": {
-      "found": false,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(13, 17, 23)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".filter-bar": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".filter-field span": {
-      "found": true,
-      "color": "rgb(113, 128, 146)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(113, 128, 146)",
-      "outline-color": "rgb(113, 128, 146)",
-      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
-    },
-    ".filter-field select": {
-      "found": true,
-      "color": "rgb(213, 221, 231)",
-      "background-color": "rgb(21, 30, 41)",
-      "border-color": "rgba(0, 0, 0, 0)",
-      "outline-color": "rgb(213, 221, 231)",
-      "text-shadow": "none"
-    },
-    ".metric": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
     ".chart-grid": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
       "background-color": "rgba(0, 0, 0, 0)",
       "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".chart-panel": {
-      "found": true,
       "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(16, 23, 32)",
-      "border-color": "rgb(230, 237, 243)",
+      "found": true,
       "outline-color": "rgb(230, 237, 243)",
       "text-shadow": "none"
     },
     ".chart-loading": {
-      "found": false,
-      "color": "rgb(230, 237, 243)",
       "background-color": "rgb(13, 17, 23)",
       "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": false,
       "outline-color": "rgb(230, 237, 243)",
       "text-shadow": "none"
     },
-    ".panel-heading": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".table-panel": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
+    ".chart-panel": {
       "background-color": "rgb(16, 23, 32)",
       "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".session-table": {
-      "found": true,
       "color": "rgb(230, 237, 243)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".session-toggle": {
-      "found": false,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(13, 17, 23)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".session-toggle__label": {
-      "found": false,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(13, 17, 23)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".rate-badge": {
-      "found": false,
-      "color": "rgb(230, 237, 243)",
-      "background-color": "rgb(13, 17, 23)",
-      "border-color": "rgb(230, 237, 243)",
-      "outline-color": "rgb(230, 237, 243)",
-      "text-shadow": "none"
-    },
-    ".provider-status summary::after": {
       "found": true,
-      "color": "rgb(125, 137, 152)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(125, 137, 152) rgb(240, 246, 252) rgb(240, 246, 252) rgb(125, 137, 152)",
-      "outline-color": "rgb(125, 137, 152)",
-      "text-shadow": "none"
-    },
-    ".provider-status__menu": {
-      "found": true,
-      "color": "rgb(125, 137, 152)",
-      "background-color": "rgb(24, 34, 45)",
-      "border-color": "rgb(125, 137, 152)",
-      "outline-color": "rgb(125, 137, 152)",
-      "text-shadow": "none"
-    },
-    ".provider-status__info": {
-      "found": true,
-      "color": "rgb(174, 185, 198)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(174, 185, 198)",
-      "outline-color": "rgb(174, 185, 198)",
+      "outline-color": "rgb(230, 237, 243)",
       "text-shadow": "none"
     },
     ".connection-status": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
       "background-color": "rgba(0, 0, 0, 0)",
       "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
       "outline-color": "rgb(230, 237, 243)",
       "text-shadow": "none"
     },
-    ".connection-status strong": {
+    ".connection-status small": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(174, 185, 198)",
+      "color": "rgb(174, 185, 198)",
       "found": true,
-      "color": "rgb(240, 246, 252)",
+      "outline-color": "rgb(174, 185, 198)",
+      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
+    },
+    ".connection-status strong": {
       "background-color": "rgba(0, 0, 0, 0)",
       "border-color": "rgb(240, 246, 252)",
+      "color": "rgb(240, 246, 252)",
+      "found": true,
       "outline-color": "rgb(240, 246, 252)",
       "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
     },
-    ".connection-status small": {
-      "found": true,
-      "color": "rgb(125, 137, 152)",
-      "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(125, 137, 152)",
-      "outline-color": "rgb(125, 137, 152)",
-      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
-    },
     ".connection-status__dot": {
-      "found": true,
-      "color": "rgb(230, 237, 243)",
       "background-color": "rgb(101, 214, 173)",
       "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-error": {
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": false,
       "outline-color": "rgb(230, 237, 243)",
       "text-shadow": "none"
     },
     ".dashboard-footer": {
-      "found": true,
-      "color": "rgb(89, 103, 120)",
       "background-color": "rgba(0, 0, 0, 0)",
-      "border-color": "rgb(89, 103, 120)",
-      "outline-color": "rgb(89, 103, 120)",
+      "border-color": "rgb(111, 124, 141)",
+      "color": "rgb(111, 124, 141)",
+      "found": true,
+      "outline-color": "rgb(111, 124, 141)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__actions": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__primary": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__scene": {
+      "background-color": "rgb(11, 16, 22)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__scene::after": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__scene::before": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__water": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__water::before": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-shell": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-warning": {
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": false,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".filter-bar": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".filter-field select": {
+      "background-color": "rgb(21, 30, 41)",
+      "border-color": "rgba(0, 0, 0, 0)",
+      "color": "rgb(213, 221, 231)",
+      "found": true,
+      "outline-color": "rgb(213, 221, 231)",
+      "text-shadow": "none"
+    },
+    ".filter-field span": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(113, 128, 146)",
+      "color": "rgb(113, 128, 146)",
+      "found": true,
+      "outline-color": "rgb(113, 128, 146)",
+      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
+    },
+    ".metric": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".panel-heading": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".provider-status summary::after": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(174, 185, 198) rgb(240, 246, 252) rgb(240, 246, 252) rgb(174, 185, 198)",
+      "color": "rgb(174, 185, 198)",
+      "found": true,
+      "outline-color": "rgb(174, 185, 198)",
+      "text-shadow": "none"
+    },
+    ".provider-status__info": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(174, 185, 198)",
+      "color": "rgb(174, 185, 198)",
+      "found": true,
+      "outline-color": "rgb(174, 185, 198)",
+      "text-shadow": "none"
+    },
+    ".provider-status__menu": {
+      "background-color": "rgb(24, 34, 45)",
+      "border-color": "rgb(174, 185, 198)",
+      "color": "rgb(174, 185, 198)",
+      "found": true,
+      "outline-color": "rgb(174, 185, 198)",
+      "text-shadow": "none"
+    },
+    ".rate-badge": {
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": false,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".rescan-button": {
+      "background-color": "rgb(20, 29, 39)",
+      "border-color": "rgb(154, 167, 182)",
+      "color": "rgb(154, 167, 182)",
+      "found": true,
+      "outline-color": "rgb(154, 167, 182)",
+      "text-shadow": "none"
+    },
+    ".session-table": {
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".session-toggle": {
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": false,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".session-toggle__label": {
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": false,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".table-panel": {
+      "background-color": "rgb(16, 23, 32)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ":root": {
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    "body": {
+      "background-color": "rgb(11, 16, 22)",
+      "border-color": "rgb(230, 237, 243)",
+      "color": "rgb(230, 237, 243)",
+      "found": true,
+      "outline-color": "rgb(230, 237, 243)",
       "text-shadow": "none"
     }
   }
