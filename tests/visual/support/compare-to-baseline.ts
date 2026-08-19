@@ -6,8 +6,16 @@ import { PNG } from "pngjs";
 const BASELINE_DIRECTORY = join(import.meta.dir, "..", "__baselines__");
 const FAILURE_DIRECTORY = join(import.meta.dir, "..", "__failures__");
 
-/** Anti-aliasing of text differs slightly between runs; below this a pixel is unchanged. */
-const PIXEL_TOLERANCE = 0.12;
+/**
+ * Below this a pixel counts as unchanged. Repeat captures on one machine are bit-identical,
+ * so this only absorbs cross-machine font rendering, not run-to-run drift.
+ *
+ * Kept low because the palette work moves text colours by roughly dE 3, and the signal for
+ * a shift that size dies between 0.02 and 0.04: recolouring every text element on the page
+ * registered 0.005 of pixels here and 0.0001 at 0.04. A looser tolerance cannot tell a
+ * palette regression from an identical render.
+ */
+const PIXEL_TOLERANCE = 0.02;
 
 export interface BaselineComparison {
   changedPixelRatio: number;

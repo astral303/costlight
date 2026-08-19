@@ -19,6 +19,7 @@ import * as echarts from "echarts/core";
 import type { ComposeOption, EChartsType as ECharts } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
+import { CHART_CHROME, CHART_SERIES_COLORS } from "./chart-palette";
 import {
   captureChartZoom,
   type ChartZoomRange,
@@ -30,41 +31,6 @@ import "./cost-chart.css";
 
 const CHART_GROUP = "costlight";
 let areChartsConnected = false;
-
-/**
- * A categorical scale: adjacent series only have to stay apart from one another. These
- * deliberately do not track the UI palette — series 1 sharing the brand green is a
- * coincidence of value, not a shared meaning, and tying them would move the chart
- * whenever a status colour was retuned.
- */
-export const CHART_SERIES_COLORS = ["#65d6ad", "#42a5c6", "#8b7cf6", "#f0a04b", "#f5f7fa"];
-
-/**
- * Chart chrome, which does mirror the interface: the gridline is the table's row rule and
- * the zoom handle is the same accent as a focus ring. `chart-palette.test.ts` asserts the
- * pairs that have to move together.
- *
- * Held here rather than read from CSS custom properties because echarts parses these
- * itself, and zrender rejects everything a stylesheet would hand back once tokens carry
- * transforms — `color-mix()`, `rgb(from …)` and the `oklab()` that registered properties
- * resolve to all parse as undefined.
- */
-export const CHART_CHROME = {
-  axisLabel: "#738092",
-  axisLine: "#2a3544",
-  axisPointerLabel: "#273444",
-  gridLine: "#19232e",
-  legendText: "#9aa7b6",
-  legendTextInactive: "#4c5866",
-  toolboxIcon: "#9aa7b6",
-  toolboxIconEmphasis: "#f5f7fa",
-  tooltipBackground: "#111821f2",
-  tooltipBorder: "#354253",
-  tooltipText: "#e6edf3",
-  zoomBackground: "#0d131b",
-  zoomFill: "#65d6ad20",
-  zoomHandle: "#65d6ad",
-};
 
 type CostChartOption = ComposeOption<
   | AriaComponentOption
