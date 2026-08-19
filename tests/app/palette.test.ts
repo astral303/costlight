@@ -83,12 +83,20 @@ describe("the palette", () => {
     expect(tooClose).toEqual([]);
   });
 
-  test("states most of itself as steps off a few literals", async () => {
+  test("states both ramps as steps between their own ends", async () => {
     const palette = await resolvePalette();
-    const literals = [...palette.values()].filter((token) => !isDerived(token));
+    const isAnchor = (name: string) =>
+      ["--color-text-1", "--color-text-11", "--color-app-bg", "--color-border"].includes(name);
 
-    // The point of the refactor: a colour is either a source of truth or a stated step
-    // from one. Retuning an anchor has to move its whole ramp rather than one token.
-    expect(literals.length).toBeLessThan(palette.size / 2);
+    // The point of the refactor: within a ramp a colour is either an end or a stated step
+    // between the ends, so retuning an end moves the whole ramp rather than one token.
+    // Naming the ramps rather than counting literals, because a bare count stays green
+    // when a single step is pasted back as a hex, which is the regression worth catching.
+    const undeclared = [...palette]
+      .filter(([name]) => /^--color-(text-\d+|surface-(subtle|raised|elevated|control|overlay)|page-bg)$/.test(name))
+      .filter(([name, token]) => !isAnchor(name) && !isDerived(token))
+      .map(([name]) => name);
+
+    expect(undeclared).toEqual([]);
   });
 });
