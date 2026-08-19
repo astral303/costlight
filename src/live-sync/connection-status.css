@@ -24,12 +24,12 @@
 }
 
 .connection-status strong {
-  color: var(--color-text-emphasis);
+  color: var(--color-text-1);
   font-size: 0.74rem;
 }
 
 .connection-status small {
   margin-top: 2px;
-  color: var(--color-text-status);
+  color: var(--color-text-8);
   font-size: 0.64rem;
 }

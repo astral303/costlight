@@ -144,7 +144,7 @@
   height: 34px;
   padding: 0;
   place-items: center;
-  color: var(--color-text-soft);
+  color: var(--color-text-6);
   border: 0;
   border-radius: 50%;
   background: var(--color-surface-control);
@@ -208,7 +208,7 @@
 .filter-field span {
   display: block;
   margin: 0 0 5px 3px;
-  color: var(--color-text-muted);
+  color: var(--color-text-9);
   font-size: 0.62rem;
   font-weight: 650;
   text-shadow: 0 1px 3px rgb(4 8 14 / 85%);
@@ -223,7 +223,7 @@
   min-width: 0;
   height: 38px;
   padding: 0 28px 0 10px;
-  color: var(--color-text-strong);
+  color: var(--color-text-2);
   border: 1px solid transparent;
   border-radius: 9px;
   outline: none;
@@ -237,7 +237,7 @@
 }
 
 .filter-field select:disabled {
-  color: var(--color-text-disabled);
+  color: var(--color-text-7);
   cursor: default;
 }
 
@@ -255,21 +255,21 @@
 }
 
 .metric > span {
-  color: var(--color-text-metric-label);
+  color: var(--color-text-9);
   font-size: 0.68rem;
   font-weight: 650;
 }
 
 .metric > strong {
   margin-top: 5px;
-  color: var(--color-text-emphasis);
+  color: var(--color-text-1);
   font-size: clamp(1.12rem, 1.7vw, 1.65rem);
   letter-spacing: -0.035em;
 }
 
 .metric > small {
   margin-top: 3px;
-  color: var(--color-text-metric-label);
+  color: var(--color-text-9);
   font-size: 0.64rem;
 }
 
@@ -293,7 +293,7 @@
   display: grid;
   height: 340px;
   place-items: center;
-  color: var(--color-text-placeholder);
+  color: var(--color-text-10);
   font-size: 0.75rem;
 }
 
@@ -303,14 +303,14 @@
 
 .panel-heading h2 {
   margin: 0;
-  color: var(--color-text);
+  color: var(--color-text-1);
   font-size: 0.96rem;
   letter-spacing: -0.015em;
 }
 
 .panel-heading p {
   margin: 4px 0 0;
-  color: var(--color-text-faint);
+  color: var(--color-text-9);
   font-size: 0.7rem;
 }
 
@@ -367,13 +367,13 @@ td {
 }
 
 th {
-  color: var(--color-text-faint);
+  color: var(--color-text-9);
   font-size: 0.63rem;
   font-weight: 650;
 }
 
 td {
-  color: var(--color-table-cell);
+  color: var(--color-text-5);
 }
 
 td strong,
@@ -382,7 +382,7 @@ td small {
 }
 
 td strong {
-  color: var(--color-table-cell-emphasis);
+  color: var(--color-text-1);
   font-size: 0.76rem;
 }
 
@@ -390,7 +390,7 @@ td small {
   max-width: 360px;
   margin-top: 4px;
   overflow: hidden;
-  color: var(--color-table-cell-caption);
+  color: var(--color-text-10);
   font-size: 0.66rem;
   text-overflow: ellipsis;
 }
@@ -472,14 +472,14 @@ td small {
 }
 
 .rate-cell {
-  color: var(--color-table-rate);
+  color: var(--color-text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .empty-table,
 .agent-error {
   padding: 28px;
-  color: var(--color-text-faint);
+  color: var(--color-text-9);
   text-align: center;
 }
 
@@ -489,7 +489,7 @@ td small {
   justify-content: center;
   gap: 8px 22px;
   padding: 22px 0 0;
-  color: var(--color-text-footer);
+  color: var(--color-text-11);
   font-size: 0.68rem;
 }
 

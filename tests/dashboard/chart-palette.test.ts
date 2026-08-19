@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { CHART_CHROME, CHART_SERIES_COLORS } from "../../src/dashboard/CostChart";
+import { CHART_CHROME, CHART_SERIES_COLORS } from "../../src/dashboard/chart-palette";
 
 const APPLICATION_CSS = join(import.meta.dir, "..", "..", "src", "app", "application.css");
 
@@ -24,7 +24,7 @@ describe("chart chrome tracks the interface palette", () => {
   });
 
   test("tooltip text is body text", async () => {
-    expect(CHART_CHROME.tooltipText).toBe(await readToken("--color-text"));
+    expect(CHART_CHROME.tooltipText).toBe(await readToken("--color-text-1"));
   });
 
   test("the zoom handle is the interactive accent", async () => {
