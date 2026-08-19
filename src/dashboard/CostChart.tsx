@@ -1,15 +1,22 @@
-import { BarChart, LineChart } from "echarts/charts";
+import { BarChart, LineChart, type BarSeriesOption, type LineSeriesOption } from "echarts/charts";
 import {
   AriaComponent,
+  type AriaComponentOption,
   DataZoomComponent,
+  type DataZoomComponentOption,
   DatasetComponent,
+  type DatasetComponentOption,
   GridComponent,
+  type GridComponentOption,
   LegendComponent,
+  type LegendComponentOption,
   ToolboxComponent,
   TooltipComponent,
+  type ToolboxComponentOption,
+  type TooltipComponentOption,
 } from "echarts/components";
 import * as echarts from "echarts/core";
-import type { EChartsCoreOption as EChartsOption, EChartsType as ECharts } from "echarts/core";
+import type { ComposeOption, EChartsType as ECharts } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
 import {
@@ -23,6 +30,18 @@ import "./cost-chart.css";
 
 const CHART_GROUP = "costlight";
 let areChartsConnected = false;
+
+type CostChartOption = ComposeOption<
+  | AriaComponentOption
+  | BarSeriesOption
+  | DataZoomComponentOption
+  | DatasetComponentOption
+  | GridComponentOption
+  | LegendComponentOption
+  | LineSeriesOption
+  | TooltipComponentOption
+  | ToolboxComponentOption
+>;
 
 echarts.use([
   AriaComponent,
@@ -118,7 +137,7 @@ export function createChartOption(
   points: readonly TimeseriesPoint[],
   kind: CostChartProps["kind"],
   zoomRange?: ChartZoomRange,
-): EChartsOption {
+): CostChartOption {
   const prefix = kind === "cumulative" ? "cumulative" : "";
   const dimension = (component: "CacheCreation" | "CacheRead" | "Input" | "Output" | "Total") => {
     if (prefix === "") {
@@ -231,16 +250,14 @@ export function createChartOption(
     xAxis: {
       axisLabel: {
         color: "#738092",
-        formatter: (value: string) => formatObservationTime(rows, value, "axis"),
+        formatter: (value) => formatAxisValue(rows, value, "axis"),
         hideOverlap: true,
       },
       axisLine: { lineStyle: { color: "#2a3544" } },
       axisPointer: {
         label: {
           backgroundColor: "#273444",
-          formatter: (parameters: { value: string | number }) => (
-            formatObservationTime(rows, parameters.value, "tooltip")
-          ),
+          formatter: (parameters) => formatAxisValue(rows, parameters.value, "tooltip"),
         },
       },
       boundaryGap: kind === "bucket",
@@ -282,7 +299,7 @@ export function readDataZoomRange(
   };
 }
 
-function createBarSeries(name: string, dimension: string) {
+function createBarSeries(name: string, dimension: string): BarSeriesOption {
   return {
     barMaxWidth: 24,
     datasetIndex: 0,
@@ -294,7 +311,7 @@ function createBarSeries(name: string, dimension: string) {
   };
 }
 
-function createCumulativeAreaSeries(name: string, dimension: string) {
+function createCumulativeAreaSeries(name: string, dimension: string): LineSeriesOption {
   return {
     areaStyle: { opacity: 0.38 },
     datasetIndex: 0,
@@ -336,6 +353,18 @@ function formatObservationTime(
 ): string {
   const row = rows[Number(observation)];
   return row === undefined ? "" : formatChartTime(row.time, detail);
+}
+
+function formatAxisValue(rows: readonly ChartRow[], rawValue: unknown, detail: "axis" | "tooltip"): string {
+  const axisValue = rawValue instanceof Date
+    ? rawValue.getTime()
+    : typeof rawValue === "number"
+      ? rawValue
+      : Number(rawValue);
+  if (!Number.isFinite(axisValue)) {
+    return "";
+  }
+  return formatObservationTime(rows, axisValue, detail);
 }
 
 function formatChartTime(timestampMs: number, detail: "axis" | "tooltip"): string {
