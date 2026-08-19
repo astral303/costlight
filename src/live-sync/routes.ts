@@ -5,6 +5,8 @@ import type { MeteredUsageService } from "../metered-usage/service";
 import type { SessionMonitor } from "../session-import/monitor";
 import type { LiveUpdateHub } from "./hub";
 
+const LIVE_EVENTS_PATH = "/api/events";
+
 interface LiveRouteDependencies {
   database: Database;
   hub: LiveUpdateHub;
@@ -14,12 +16,16 @@ interface LiveRouteDependencies {
   startedAtMs: number;
 }
 
+export function isSSEStreamRequest(request: Request, url: URL): boolean {
+  return request.method === "GET" && url.pathname === LIVE_EVENTS_PATH;
+}
+
 export function handleLiveRoute(
   request: Request,
   url: URL,
   dependencies: LiveRouteDependencies,
 ): Response | null {
-  if (url.pathname === "/api/events") {
+  if (url.pathname === LIVE_EVENTS_PATH) {
     return request.method === "GET"
       ? dependencies.hub.createEventResponse()
       : methodNotAllowed("GET");
