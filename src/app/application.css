@@ -1,32 +1,39 @@
+/* Every colour below is either one of thirteen literals or a stated step between two of
+   them. Mixing happens in CIE Lab, the space the ramps were spaced in, so a percentage
+   reads as the perceptual distance it actually travels. */
 :root {
-  /* Base page palette */
-  --color-page-bg: #0d1117;
+  /* Surfaces, darkest to lightest. The two ends are literal and everything between is a
+     position on the line joining them, so retuning either end moves the whole ramp. */
   --color-app-bg: #0b1016;
-  --color-surface-raised: #101720;
-  --color-surface-elevated: #111a23;
-  --color-surface-subtle: #0c131a;
-  --color-surface-control: #151e29;
-  --color-surface-overlay: #18222d;
+  --color-border: #19232e;
+
+  --color-page-bg: color-mix(in lab, var(--color-border) 2.2%, var(--color-app-bg));
+  --color-surface-subtle: color-mix(in lab, var(--color-border) 11%, var(--color-app-bg));
+  --color-surface-raised: color-mix(in lab, var(--color-border) 32.5%, var(--color-app-bg));
+  --color-surface-elevated: color-mix(in lab, var(--color-border) 49.3%, var(--color-app-bg));
+  --color-surface-control: color-mix(in lab, var(--color-border) 73.9%, var(--color-app-bg));
+  --color-surface-overlay: color-mix(in lab, var(--color-border) 94.1%, var(--color-app-bg));
+
+  /* Off the neutral ramp: these carry hue because they signal state. */
   --color-surface-warning: #2b2116;
   --color-surface-error: #301818;
 
-  --color-border: #19232e;
-
-  /* Neutral text ramp, brightest first. Eleven ordinal steps spaced an even 5.04 L*
-     apart, because relative dimness is the only property consumers pick on and no
-     adjective set conveys an order. Step 4 has no consumer; it is kept so the
-     spacing stays arithmetic and each step can become a transform of step 1. */
+  /* Neutral text ramp, brightest first. Eleven ordinal steps evenly spaced between the two
+     literal ends, because relative dimness is the only property consumers pick on and no
+     adjective set conveys an order. Step 4 has no consumer; it is kept so the spacing stays
+     an even 10%, which is what lets the nine middle steps be stated rather than picked. */
   --color-text-1: #e6edf3;
-  --color-text-2: #d7dfe6;
-  --color-text-3: #c8d1d9;
-  --color-text-4: #bac3cd;
-  --color-text-5: #abb5c0;
-  --color-text-6: #9da7b4;
-  --color-text-7: #8f9aa7;
-  --color-text-8: #818d9b;
-  --color-text-9: #74808f;
-  --color-text-10: #667384;
   --color-text-11: #596778;
+
+  --color-text-2: color-mix(in lab, var(--color-text-11) 10%, var(--color-text-1));
+  --color-text-3: color-mix(in lab, var(--color-text-11) 20%, var(--color-text-1));
+  --color-text-4: color-mix(in lab, var(--color-text-11) 30%, var(--color-text-1));
+  --color-text-5: color-mix(in lab, var(--color-text-11) 40%, var(--color-text-1));
+  --color-text-6: color-mix(in lab, var(--color-text-11) 50%, var(--color-text-1));
+  --color-text-7: color-mix(in lab, var(--color-text-11) 60%, var(--color-text-1));
+  --color-text-8: color-mix(in lab, var(--color-text-11) 70%, var(--color-text-1));
+  --color-text-9: color-mix(in lab, var(--color-text-11) 80%, var(--color-text-1));
+  --color-text-10: color-mix(in lab, var(--color-text-11) 90%, var(--color-text-1));
 
   /* Near-black green: the only text that sits on an accent fill. */
   --color-text-on-accent: #081611;
@@ -40,7 +47,7 @@
   /* The one interactive colour: focus rings, hover, selection, the primary button.
      Being green is incidental — read `--color-status-connected` for the status meaning. */
   --color-accent: #65d6ad;
-  --color-accent-focus-ring: #65d6ad18;
+  --color-accent-focus-ring: rgb(from var(--color-accent) r g b / 9.4%);
   --color-status-connected: var(--color-accent);
 
   --color-warning: #f0a04b;
