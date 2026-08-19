@@ -44,7 +44,12 @@ settle on, which is what makes repeat runs identical.
 Anything that can differ between two runs has to be pinned:
 
 - **Charts** are replaced with a fixed-height stand-in. echarts draws to a canvas that
-  happy-dom cannot provide and that would not paint identically twice.
+  happy-dom cannot provide and that would not paint identically twice. Every suite that
+  mocks `CostChart` must share the one `CostChartDouble`: Bun applies `mock.module`
+  registrations globally, so two doubles for the same path means the winner depends on
+  file order. When they disagreed on height the chart panels collapsed and pulled the
+  session table into frame, which reads as a palette regression rather than a mock
+  problem, and it only appeared when the whole suite ran.
 - **The event source** reports itself open, so captures guard the connected header
   rather than the "Reconnecting" state a stub would otherwise leave behind.
 - **Pricing timestamps** are built inside the current year, because `formatPricingDate`
@@ -58,11 +63,23 @@ test wants values chosen to exercise edge cases, such as titles long enough to o
 
 ## Limits worth knowing
 
+Two separate tolerances decide whether a capture fails, and both matter. `PIXEL_TOLERANCE`
+sets how different one pixel has to be before it counts at all; the `0.002` changed-pixel
+budget then sets how many may count. A loose per-pixel tolerance silently disables the
+budget: at the 0.12 this once used, recolouring every text element on the page registered
+as zero changed pixels. Repeat captures on one machine are bit-identical, so that
+tolerance only has to absorb cross-machine font rendering, and it is kept low enough to
+still see a colour change of a few dE.
+
 Baselines carry the host's font rasterisation, so they are only portable between
 machines that render text identically. Expect to regenerate them on a different OS, and
 treat a diff confined to glyph edges as environmental rather than a real change. The
-`0.002` changed-pixel budget absorbs anti-aliasing jitter; the z-order regression above
-moved roughly 30 times that.
+z-order regression above moved roughly 30 times the budget.
+
+Captures reach only a few hundred pixels down the page — enough for the header, filter
+bar and metric row. The session table, badges, rate cells and footer are below every
+capture and are not covered at all, so a change confined to them passes here and needs
+checking by eye.
 
 Only the 1280px capture caught that regression, because the reflection reaches the rows
 below the header at that width and not at the narrower ones. Adding a width adds
