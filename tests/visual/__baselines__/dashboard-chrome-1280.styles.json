@@ -1,0 +1,285 @@
+{
+  "rootColorVariables": {},
+  "selectors": {
+    ":root": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    "body": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(11, 16, 22)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-shell": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__water": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__scene": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(11, 16, 22)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__scene::before": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__scene::after": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__water::before": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__primary": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-header__actions": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".rescan-button": {
+      "found": true,
+      "color": "rgb(154, 167, 182)",
+      "background-color": "rgb(20, 29, 39)",
+      "border-color": "rgb(154, 167, 182)",
+      "outline-color": "rgb(154, 167, 182)",
+      "text-shadow": "none"
+    },
+    ".dashboard-error": {
+      "found": false,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-warning": {
+      "found": false,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".filter-bar": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".filter-field span": {
+      "found": true,
+      "color": "rgb(113, 128, 146)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(113, 128, 146)",
+      "outline-color": "rgb(113, 128, 146)",
+      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
+    },
+    ".filter-field select": {
+      "found": true,
+      "color": "rgb(213, 221, 231)",
+      "background-color": "rgb(21, 30, 41)",
+      "border-color": "rgba(0, 0, 0, 0)",
+      "outline-color": "rgb(213, 221, 231)",
+      "text-shadow": "none"
+    },
+    ".metric": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".chart-grid": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".chart-panel": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(16, 23, 32)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".chart-loading": {
+      "found": false,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".panel-heading": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".table-panel": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(16, 23, 32)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".session-table": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".session-toggle": {
+      "found": false,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".session-toggle__label": {
+      "found": false,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".rate-badge": {
+      "found": false,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(13, 17, 23)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".provider-status summary::after": {
+      "found": true,
+      "color": "rgb(125, 137, 152)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(125, 137, 152) rgb(240, 246, 252) rgb(240, 246, 252) rgb(125, 137, 152)",
+      "outline-color": "rgb(125, 137, 152)",
+      "text-shadow": "none"
+    },
+    ".provider-status__menu": {
+      "found": true,
+      "color": "rgb(125, 137, 152)",
+      "background-color": "rgb(24, 34, 45)",
+      "border-color": "rgb(125, 137, 152)",
+      "outline-color": "rgb(125, 137, 152)",
+      "text-shadow": "none"
+    },
+    ".provider-status__info": {
+      "found": true,
+      "color": "rgb(174, 185, 198)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(174, 185, 198)",
+      "outline-color": "rgb(174, 185, 198)",
+      "text-shadow": "none"
+    },
+    ".connection-status": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".connection-status strong": {
+      "found": true,
+      "color": "rgb(240, 246, 252)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(240, 246, 252)",
+      "outline-color": "rgb(240, 246, 252)",
+      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
+    },
+    ".connection-status small": {
+      "found": true,
+      "color": "rgb(125, 137, 152)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(125, 137, 152)",
+      "outline-color": "rgb(125, 137, 152)",
+      "text-shadow": "rgba(4, 8, 14, 0.85) 0px 1px 3px"
+    },
+    ".connection-status__dot": {
+      "found": true,
+      "color": "rgb(230, 237, 243)",
+      "background-color": "rgb(101, 214, 173)",
+      "border-color": "rgb(230, 237, 243)",
+      "outline-color": "rgb(230, 237, 243)",
+      "text-shadow": "none"
+    },
+    ".dashboard-footer": {
+      "found": true,
+      "color": "rgb(89, 103, 120)",
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-color": "rgb(89, 103, 120)",
+      "outline-color": "rgb(89, 103, 120)",
+      "text-shadow": "none"
+    }
+  }
+}
