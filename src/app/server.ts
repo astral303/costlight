@@ -1,5 +1,6 @@
 import { basename, extname, relative, resolve, sep } from "node:path";
 import { timingSafeEqual } from "node:crypto";
+import { APPLICATION_VERSION } from "../app-version/server-version";
 import { CallLedger } from "../call-accounting/ledger";
 import { handleDashboardRoute } from "../dashboard/routes";
 import { RotatingErrorLog, type ErrorLogContext } from "../error-logging/rotating-error-log";
@@ -86,7 +87,9 @@ const pricingRefreshTimer = setInterval(() => {
   });
 }, PRICING_REFRESH_INTERVAL_MS);
 
-console.log(`Costlight listening on ${server.url.origin}`);
+// The footer shows the version baked into the served bundle at build time; printing the
+// server's own resolution here makes a stale `dist/` stand out as a mismatch.
+console.log(`Costlight v${APPLICATION_VERSION} listening on ${server.url.origin}`);
 
 const stopListeningForTerminalExit = registerTerminalExitShortcut(requestShutdown);
 const shutdown = createApplicationShutdown({
