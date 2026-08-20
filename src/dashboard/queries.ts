@@ -52,9 +52,14 @@ interface TimeseriesSqlRow {
   bucket_start_ms: number;
   cache_creation_cost_nano: number;
   cache_read_cost_nano: number;
+  cache_read_tokens: number;
   call_count: number;
   input_cost_nano: number;
+  no_cache_extra_cost_nano: number;
   output_cost_nano: number;
+  peak_main_prompt_tokens: number;
+  peak_subagent_prompt_tokens: number;
+  prompt_tokens: number;
   total_cost_nano: number;
   unpriced_call_count: number;
 }
@@ -62,6 +67,33 @@ interface TimeseriesSqlRow {
 interface RawCostRow extends Omit<TimeseriesSqlRow, "bucket_start_ms"> {
   timestamp_ms: number;
 }
+
+/** Every input-side token of one call: uncached input, cache writes of all TTLs, cache reads. */
+const PROMPT_TOKENS_SQL = `
+  call.input_other_tokens + call.cache_creation_tokens
+  + call.cache_creation_5m_tokens + call.cache_creation_1h_tokens
+  + call.cache_read_tokens
+`;
+
+/**
+ * What one call's cache reads would have cost at the input rate, beyond what they did
+ * cost. NULL (dropped by SUM/COALESCE) when the call has no resolved rate, clamped at
+ * zero if a rate ever priced reads above input.
+ */
+const NO_CACHE_EXTRA_COST_SQL = `
+  MAX(call.cache_read_tokens * rate.input_nano_per_token - call.cache_read_cost_nano, 0)
+`;
+
+/**
+ * The context chart splits prompts by who made the call. Unknown agent types count as
+ * main so providers that never label agents still chart one main line.
+ */
+const MAIN_PROMPT_TOKENS_SQL = `
+  CASE WHEN agent.agent_type = 'sub' THEN NULL ELSE ${PROMPT_TOKENS_SQL} END
+`;
+const SUBAGENT_PROMPT_TOKENS_SQL = `
+  CASE WHEN agent.agent_type = 'sub' THEN ${PROMPT_TOKENS_SQL} ELSE NULL END
+`;
 
 export function querySummary(
   database: Database,
@@ -627,10 +659,16 @@ function queryFixedTimeseries(
       COALESCE(SUM(call.cache_read_cost_nano), 0) AS cache_read_cost_nano,
       COALESCE(SUM(call.output_cost_nano), 0) AS output_cost_nano,
       COALESCE(SUM(call.total_cost_nano), 0) AS total_cost_nano,
+      COALESCE(SUM(call.cache_read_tokens), 0) AS cache_read_tokens,
+      COALESCE(SUM(${PROMPT_TOKENS_SQL}), 0) AS prompt_tokens,
+      COALESCE(MAX(${MAIN_PROMPT_TOKENS_SQL}), 0) AS peak_main_prompt_tokens,
+      COALESCE(MAX(${SUBAGENT_PROMPT_TOKENS_SQL}), 0) AS peak_subagent_prompt_tokens,
+      COALESCE(SUM(${NO_CACHE_EXTRA_COST_SQL}), 0) AS no_cache_extra_cost_nano,
       SUM(CASE WHEN call.total_cost_nano IS NULL THEN 1 ELSE 0 END) AS unpriced_call_count
     FROM api_calls AS call
     JOIN sessions AS session ON session.session_id = call.session_id
     JOIN agents AS agent ON agent.session_id = call.session_id AND agent.agent_id = call.agent_id
+    LEFT JOIN model_rates AS rate ON rate.rate_id = call.rate_id
     ${filterSql.clause}
     GROUP BY bucket_start_ms
     ORDER BY bucket_start_ms
@@ -662,10 +700,16 @@ function queryCallTimeseries(
       COALESCE(call.cache_read_cost_nano, 0) AS cache_read_cost_nano,
       COALESCE(call.output_cost_nano, 0) AS output_cost_nano,
       COALESCE(call.total_cost_nano, 0) AS total_cost_nano,
+      call.cache_read_tokens AS cache_read_tokens,
+      ${PROMPT_TOKENS_SQL} AS prompt_tokens,
+      COALESCE(${MAIN_PROMPT_TOKENS_SQL}, 0) AS peak_main_prompt_tokens,
+      COALESCE(${SUBAGENT_PROMPT_TOKENS_SQL}, 0) AS peak_subagent_prompt_tokens,
+      COALESCE(${NO_CACHE_EXTRA_COST_SQL}, 0) AS no_cache_extra_cost_nano,
       CASE WHEN call.total_cost_nano IS NULL THEN 1 ELSE 0 END AS unpriced_call_count
     FROM api_calls AS call
     JOIN sessions AS session ON session.session_id = call.session_id
     JOIN agents AS agent ON agent.session_id = call.session_id AND agent.agent_id = call.agent_id
+    LEFT JOIN model_rates AS rate ON rate.rate_id = call.rate_id
     ${filterSql.clause}
     ORDER BY call.timestamp_ms, call.event_fingerprint
   `, filterSql.parameters);
@@ -686,10 +730,16 @@ function queryCalendarTimeseries(
       COALESCE(call.cache_read_cost_nano, 0) AS cache_read_cost_nano,
       COALESCE(call.output_cost_nano, 0) AS output_cost_nano,
       COALESCE(call.total_cost_nano, 0) AS total_cost_nano,
+      call.cache_read_tokens AS cache_read_tokens,
+      ${PROMPT_TOKENS_SQL} AS prompt_tokens,
+      COALESCE(${MAIN_PROMPT_TOKENS_SQL}, 0) AS peak_main_prompt_tokens,
+      COALESCE(${SUBAGENT_PROMPT_TOKENS_SQL}, 0) AS peak_subagent_prompt_tokens,
+      COALESCE(${NO_CACHE_EXTRA_COST_SQL}, 0) AS no_cache_extra_cost_nano,
       CASE WHEN call.total_cost_nano IS NULL THEN 1 ELSE 0 END AS unpriced_call_count
     FROM api_calls AS call
     JOIN sessions AS session ON session.session_id = call.session_id
     JOIN agents AS agent ON agent.session_id = call.session_id AND agent.agent_id = call.agent_id
+    LEFT JOIN model_rates AS rate ON rate.rate_id = call.rate_id
     ${filterSql.clause}
     ORDER BY call.timestamp_ms
   `, filterSql.parameters);
@@ -700,9 +750,14 @@ function queryCalendarTimeseries(
       bucket_start_ms: bucketStartMs,
       cache_creation_cost_nano: 0,
       cache_read_cost_nano: 0,
+      cache_read_tokens: 0,
       call_count: 0,
       input_cost_nano: 0,
+      no_cache_extra_cost_nano: 0,
       output_cost_nano: 0,
+      peak_main_prompt_tokens: 0,
+      peak_subagent_prompt_tokens: 0,
+      prompt_tokens: 0,
       total_cost_nano: 0,
       unpriced_call_count: 0,
     };
@@ -712,6 +767,17 @@ function queryCalendarTimeseries(
     aggregate.cache_read_cost_nano += row.cache_read_cost_nano;
     aggregate.output_cost_nano += row.output_cost_nano;
     aggregate.total_cost_nano += row.total_cost_nano;
+    aggregate.cache_read_tokens += row.cache_read_tokens;
+    aggregate.prompt_tokens += row.prompt_tokens;
+    aggregate.peak_main_prompt_tokens = Math.max(
+      aggregate.peak_main_prompt_tokens,
+      row.peak_main_prompt_tokens,
+    );
+    aggregate.peak_subagent_prompt_tokens = Math.max(
+      aggregate.peak_subagent_prompt_tokens,
+      row.peak_subagent_prompt_tokens,
+    );
+    aggregate.no_cache_extra_cost_nano += row.no_cache_extra_cost_nano;
     aggregate.unpriced_call_count += row.unpriced_call_count;
     buckets.set(bucketStartMs, aggregate);
   }
@@ -723,23 +789,32 @@ function addCumulativeCosts(rows: readonly TimeseriesSqlRow[]): readonly Timeser
   let cumulativeCacheCreation = 0;
   let cumulativeCacheRead = 0;
   let cumulativeOutput = 0;
+  let cumulativeNoCacheExtra = 0;
   return rows.map((row) => {
     cumulativeInput += row.input_cost_nano;
     cumulativeCacheCreation += row.cache_creation_cost_nano;
     cumulativeCacheRead += row.cache_read_cost_nano;
     cumulativeOutput += row.output_cost_nano;
+    cumulativeNoCacheExtra += row.no_cache_extra_cost_nano;
+    const cumulativeTotal = cumulativeInput + cumulativeCacheCreation + cumulativeCacheRead + cumulativeOutput;
     return {
       bucketStartMs: row.bucket_start_ms,
       cacheCreationCostNano: row.cache_creation_cost_nano,
       cacheReadCostNano: row.cache_read_cost_nano,
+      cacheReadTokens: row.cache_read_tokens,
       callCount: row.call_count,
       cumulativeCacheCreationCostNano: cumulativeCacheCreation,
       cumulativeCacheReadCostNano: cumulativeCacheRead,
       cumulativeInputCostNano: cumulativeInput,
+      cumulativeNoCacheCostNano: cumulativeTotal + cumulativeNoCacheExtra,
       cumulativeOutputCostNano: cumulativeOutput,
-      cumulativeTotalCostNano: cumulativeInput + cumulativeCacheCreation + cumulativeCacheRead + cumulativeOutput,
+      cumulativeTotalCostNano: cumulativeTotal,
       inputCostNano: row.input_cost_nano,
+      noCacheExtraCostNano: row.no_cache_extra_cost_nano,
       outputCostNano: row.output_cost_nano,
+      peakMainPromptTokens: row.peak_main_prompt_tokens,
+      peakSubagentPromptTokens: row.peak_subagent_prompt_tokens,
+      promptTokens: row.prompt_tokens,
       totalCostNano: row.total_cost_nano,
       unpricedCallCount: row.unpriced_call_count,
     };

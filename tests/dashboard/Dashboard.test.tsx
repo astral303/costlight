@@ -204,6 +204,9 @@ describe("Dashboard", () => {
     expect(screen.getAllByText("Test session").length).toBe(2);
     expect(screen.getByTestId("bucket-chart")).toBeTruthy();
     expect(screen.getByTestId("cumulative-chart")).toBeTruthy();
+    expect(screen.getByTestId("context-chart")).toBeTruthy();
+    expect(screen.getByTestId("cacheHitRatio-chart")).toBeTruthy();
+    expect(screen.getByLabelText("Fit y-axis to data")).toBeTruthy();
     expect(screen.getByText(`Costlight v${APPLICATION_VERSION}`)).toBeTruthy();
   });
 

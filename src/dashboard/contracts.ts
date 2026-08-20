@@ -32,14 +32,33 @@ export interface TimeseriesPoint {
   bucketStartMs: number;
   cacheCreationCostNano: number;
   cacheReadCostNano: number;
+  cacheReadTokens: number;
   callCount: number;
   cumulativeCacheCreationCostNano: number;
   cumulativeCacheReadCostNano: number;
   cumulativeInputCostNano: number;
+  /** Cumulative total plus what the cache reads would have cost at the input rate. */
+  cumulativeNoCacheCostNano: number;
   cumulativeOutputCostNano: number;
   cumulativeTotalCostNano: number;
   inputCostNano: number;
+  /**
+   * What this bucket's cache reads would have cost billed at the input rate, minus what
+   * they did cost. Zero for calls whose rate is unknown, so the counterfactual
+   * understates on unpriced history.
+   */
+  noCacheExtraCostNano: number;
   outputCostNano: number;
+  /**
+   * Largest single-call prompt (context) within the bucket, split by who made the call;
+   * zero when the bucket has no such call. At call resolution exactly one side carries
+   * the call's own prompt. Calls with an unknown agent type count as main, so providers
+   * that never label agents chart everything as one main line.
+   */
+  peakMainPromptTokens: number;
+  peakSubagentPromptTokens: number;
+  /** Every input-side token: uncached input, cache writes of all TTLs, and cache reads. */
+  promptTokens: number;
   totalCostNano: number;
   unpricedCallCount: number;
 }

@@ -10,6 +10,7 @@ import {
   type GridComponentOption,
   LegendComponent,
   type LegendComponentOption,
+  MarkLineComponent,
   ToolboxComponent,
   TooltipComponent,
   type ToolboxComponentOption,
@@ -26,11 +27,28 @@ import {
   type ChartZoomWindow,
   restoreChartZoom,
 } from "./chart-zoom";
-import type { TimeseriesPoint } from "./contracts";
+import type { TimeseriesPoint, TimeseriesResolution } from "./contracts";
+import { formatTrailingWindow, TRAILING_WINDOW } from "./formatting";
 import "./cost-chart.css";
 
 const CHART_GROUP = "costlight";
 let areChartsConnected = false;
+
+/** Idle time between observations, beyond the bucket spacing, worth marking. */
+const IDLE_GAP_MINIMUM_MS = 60 * 60 * 1_000;
+/**
+ * A main-agent call is a context rebuild when at least this share of its prompt missed
+ * the cache. Both a compaction and a cold start after cache expiry look like this: the
+ * context is re-written rather than read back. Subagent calls never qualify — a subagent
+ * always starts on a fresh prompt.
+ */
+const CONTEXT_REBUILD_FRESH_SHARE = 0.5;
+/** Below this prompt size a cache miss is a routine small call, not a rebuilt context. */
+const CONTEXT_REBUILD_MINIMUM_PROMPT_TOKENS = 20_000;
+
+const TOTAL_SERIES_ID = "total";
+
+export type CostChartKind = "bucket" | "cumulative" | "context" | "cacheHitRatio";
 
 type CostChartOption = ComposeOption<
   | AriaComponentOption
@@ -53,32 +71,84 @@ echarts.use([
   GridComponent,
   LegendComponent,
   LineChart,
+  MarkLineComponent,
   ToolboxComponent,
   TooltipComponent,
 ]);
 
-interface CostChartProps {
-  kind: "bucket" | "cumulative";
+export interface CostChartView {
+  /** Let the y axis start at the visible data instead of zero. */
+  anchorYAxisToData?: boolean | undefined;
+  resolution?: TimeseriesResolution | undefined;
+}
+
+interface CostChartProps extends CostChartView {
+  kind: CostChartKind;
   points: readonly TimeseriesPoint[];
   zoomContext: string;
 }
 
-interface ChartRow {
+/** A type alias rather than an interface: echarts' dataset source needs the implicit index signature. */
+type ChartRow = {
   cacheCreation: number;
   cacheRead: number;
+  /** Null when the observation holds no call of that agent kind, so the line skips it. */
+  contextMain: number | null;
+  contextSubagent: number | null;
+  hitRatio: number;
+  idleGapMs: number;
+  /** 1 when the call re-wrote its context instead of reading it back; a dataset row cannot hold a boolean. */
+  contextRebuild: 0 | 1;
+  noCacheTotal: number;
   observation: number;
   output: number;
+  pointHitRatio: number;
   time: number;
   total: number;
+  trailingAverage: number;
   uncachedInput: number;
-}
+};
 
-export function CostChart({ kind, points, zoomContext }: CostChartProps) {
+const CHART_ARIA_LABELS: Record<CostChartKind, string> = {
+  bucket: "API cost by active observation",
+  cacheHitRatio: "Cache hit ratio by active observation",
+  context: "Context size by active observation",
+  cumulative: "Cumulative API cost by active observation",
+};
+
+/**
+ * One colour per series name, so a series keeps its colour wherever it appears and in
+ * whatever stack position. The trailing average wears the Total colour because it is the
+ * total smoothed; the hit ratio wears the cache-read colour because it is the cache-read
+ * share.
+ */
+const SERIES_COLOR_BY_NAME: Record<string, string> = {
+  "Cache creation": CHART_SERIES_COLORS.cacheCreation,
+  "Cache hit ratio": CHART_SERIES_COLORS.cacheRead,
+  "Cache read": CHART_SERIES_COLORS.cacheRead,
+  "Main agent": CHART_SERIES_COLORS.contextSize,
+  "Output": CHART_SERIES_COLORS.output,
+  "Subagents": CHART_SERIES_COLORS.subagentContext,
+  "Total": CHART_SERIES_COLORS.total,
+  "Trailing avg": CHART_SERIES_COLORS.total,
+  "Uncached input": CHART_SERIES_COLORS.uncachedInput,
+  "Without caching": CHART_SERIES_COLORS.withoutCaching,
+};
+
+export function CostChart({
+  anchorYAxisToData = false,
+  kind,
+  points,
+  resolution,
+  zoomContext,
+}: CostChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ECharts | null>(null);
   const pointsRef = useRef(points);
   const zoomContextRef = useRef(zoomContext);
   const zoomWindowRef = useRef<ChartZoomWindow | null>(null);
+  const hasRenderedRef = useRef(false);
+  const deltaLineIndexRef = useRef<number | null>(null);
   pointsRef.current = points;
 
   useEffect(() => {
@@ -100,15 +170,19 @@ export function CostChart({ kind, points, zoomContext }: CostChartProps) {
       }
     };
     chart.on("datazoom", rememberZoom);
+    const detachDeltaLine = kind === "cumulative"
+      ? attachDeltaToEndLine(chart, pointsRef, zoomWindowRef, deltaLineIndexRef)
+      : null;
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(container);
     return () => {
       resizeObserver.disconnect();
+      detachDeltaLine?.();
       chart.off("datazoom", rememberZoom);
       chart.dispose();
       chartRef.current = null;
     };
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     const shouldResetChart = zoomContextRef.current !== zoomContext;
@@ -117,59 +191,57 @@ export function CostChart({ kind, points, zoomContext }: CostChartProps) {
       zoomWindowRef.current = null;
     }
     const zoomRange = restoreChartZoom(points, zoomWindowRef.current);
-    chartRef.current?.setOption(createChartOption(points, kind, zoomRange), {
-      notMerge: shouldResetChart,
-    });
-  }, [kind, points, zoomContext]);
+    const option = createChartOption(points, kind, zoomRange, { anchorYAxisToData, resolution });
+    // Passing `legend.selected` on a merge update would undo the reader's own legend
+    // clicks on every live refresh; it belongs only to a fresh chart.
+    if (hasRenderedRef.current && !shouldResetChart && option.legend !== undefined) {
+      delete (option.legend as { selected?: unknown }).selected;
+    }
+    chartRef.current?.setOption(option, { notMerge: shouldResetChart });
+    hasRenderedRef.current = true;
+  }, [anchorYAxisToData, kind, points, resolution, zoomContext]);
 
   return (
     <div
       ref={containerRef}
       className="cost-chart"
       role="img"
-      aria-label={kind === "bucket"
-        ? "API cost by active observation"
-        : "Cumulative API cost by active observation"}
+      aria-label={CHART_ARIA_LABELS[kind]}
     />
   );
 }
 
 export function createChartOption(
   points: readonly TimeseriesPoint[],
-  kind: CostChartProps["kind"],
+  kind: CostChartKind,
   zoomRange?: ChartZoomRange,
+  view: CostChartView = {},
 ): CostChartOption {
-  const prefix = kind === "cumulative" ? "cumulative" : "";
-  const dimension = (component: "CacheCreation" | "CacheRead" | "Input" | "Output" | "Total") => {
-    if (prefix === "") {
-      const bucketNames = {
-        CacheCreation: "cacheCreationCostNano",
-        CacheRead: "cacheReadCostNano",
-        Input: "inputCostNano",
-        Output: "outputCostNano",
-        Total: "totalCostNano",
-      } as const;
-      return bucketNames[component];
-    }
-    return `${prefix}${component}CostNano` as keyof TimeseriesPoint;
-  };
-  const rows = points.map((point, observation) => ({
-    observation,
-    time: point.bucketStartMs,
-    uncachedInput: Number(point[dimension("Input")]) / 1_000_000_000,
-    cacheCreation: Number(point[dimension("CacheCreation")]) / 1_000_000_000,
-    cacheRead: Number(point[dimension("CacheRead")]) / 1_000_000_000,
-    output: Number(point[dimension("Output")]) / 1_000_000_000,
-    total: Number(point[dimension("Total")]) / 1_000_000_000,
-  }));
+  const rows = buildChartRows(points, kind, view.resolution);
+  const series = createSeries(kind, rows, view.resolution);
+  const seriesNames = series.map((entry) => entry.name as string);
+  const isSingleSeries = series.length === 1;
 
   return {
     animationDurationUpdate: 260,
     aria: { enabled: true },
     backgroundColor: "transparent",
-    color: CHART_SERIES_COLORS,
+    color: seriesNames.map((name) => SERIES_COLOR_BY_NAME[name] ?? CHART_CHROME.axisLabel),
     dataset: {
-      dimensions: ["observation", "time", "uncachedInput", "cacheCreation", "cacheRead", "output", "total"],
+      dimensions: [
+        "observation",
+        "time",
+        "uncachedInput",
+        "cacheCreation",
+        "cacheRead",
+        "output",
+        "total",
+        "trailingAverage",
+        "noCacheTotal",
+        "contextMain",
+        "contextSubagent",
+        "hitRatio",
+      ],
       source: rows,
     },
     dataZoom: [
@@ -197,38 +269,20 @@ export function createChartOption(
       pageIconInactiveColor: CHART_CHROME.legendTextInactive,
       pageTextStyle: { color: CHART_CHROME.axisLabel, fontSize: 9 },
       right: 60,
+      // The counterfactual rescales the axis several-fold, so it starts deselected and
+      // is opted into from the legend.
+      ...(kind === "cumulative" ? { selected: { "Without caching": false } } : {}),
+      show: !isSingleSeries,
       textStyle: { color: CHART_CHROME.legendText, fontSize: 10 },
       top: 4,
       type: "scroll",
     },
-    series: kind === "bucket"
-      ? [
-        createBarSeries("Uncached input", "uncachedInput"),
-        createBarSeries("Cache creation", "cacheCreation"),
-        createBarSeries("Cache read", "cacheRead"),
-        createBarSeries("Output", "output"),
-      ]
-      : [
-        createCumulativeAreaSeries("Uncached input", "uncachedInput"),
-        createCumulativeAreaSeries("Cache creation", "cacheCreation"),
-        createCumulativeAreaSeries("Cache read", "cacheRead"),
-        createCumulativeAreaSeries("Output", "output"),
-        {
-          datasetIndex: 0,
-          encode: { x: "observation", y: "total" },
-          emphasis: { focus: "series" },
-          name: "Total",
-          showSymbol: false,
-          step: "start",
-          type: "line",
-          z: 8,
-        },
-      ],
+    series,
     tooltip: {
       axisPointer: { type: kind === "bucket" ? "shadow" : "line" },
       backgroundColor: CHART_CHROME.tooltipBackground,
       borderColor: CHART_CHROME.tooltipBorder,
-      formatter: (parameters: unknown) => formatChartTooltip(parameters, rows),
+      formatter: (parameters: unknown) => formatChartTooltip(parameters, rows, kind, view.resolution),
       textStyle: { color: CHART_CHROME.tooltipText },
       trigger: "axis",
     },
@@ -266,7 +320,14 @@ export function createChartOption(
       type: "category",
     },
     yAxis: {
-      axisLabel: { color: CHART_CHROME.axisLabel, formatter: (value: number) => formatChartUsd(value) },
+      axisLabel: {
+        color: CHART_CHROME.axisLabel,
+        formatter: (value: number) => formatYAxisValue(value, kind),
+      },
+      // The hit ratio lives within a few points of 100%, so it always follows the data;
+      // the cumulative chart does so only when asked. A share axis never exceeds 100%.
+      ...(kind === "cacheHitRatio" ? { max: 1 } : {}),
+      scale: kind === "cacheHitRatio" || (kind === "cumulative" && view.anchorYAxisToData === true),
       splitLine: { lineStyle: { color: CHART_CHROME.gridLine } },
       type: "value",
     },
@@ -300,6 +361,141 @@ export function readDataZoomRange(
   };
 }
 
+export function buildChartRows(
+  points: readonly TimeseriesPoint[],
+  kind: CostChartKind,
+  resolution: TimeseriesResolution | undefined,
+): ChartRow[] {
+  const useCumulativeCosts = kind === "cumulative";
+  const spacingMs = expectedSpacingMs(resolution);
+  let windowTotalNano = 0;
+  let windowCacheReadTokens = 0;
+  let windowPromptTokens = 0;
+
+  return points.map((point, observation) => {
+    windowTotalNano += point.totalCostNano;
+    windowCacheReadTokens += point.cacheReadTokens;
+    windowPromptTokens += point.promptTokens;
+    const leavingPoint = points[observation - TRAILING_WINDOW];
+    if (leavingPoint !== undefined) {
+      windowTotalNano -= leavingPoint.totalCostNano;
+      windowCacheReadTokens -= leavingPoint.cacheReadTokens;
+      windowPromptTokens -= leavingPoint.promptTokens;
+    }
+    const windowSize = Math.min(observation + 1, TRAILING_WINDOW);
+
+    const previousPoint = points[observation - 1];
+    const idleMs = previousPoint === undefined
+      ? 0
+      : Math.max(0, point.bucketStartMs - previousPoint.bucketStartMs - spacingMs);
+    const freshPromptTokens = point.promptTokens - point.cacheReadTokens;
+
+    return {
+      cacheCreation: nanoToUsd(useCumulativeCosts ? point.cumulativeCacheCreationCostNano : point.cacheCreationCostNano),
+      cacheRead: nanoToUsd(useCumulativeCosts ? point.cumulativeCacheReadCostNano : point.cacheReadCostNano),
+      contextMain: point.peakMainPromptTokens > 0 ? point.peakMainPromptTokens : null,
+      contextRebuild: resolution === "call"
+          && point.peakMainPromptTokens > 0
+          && point.promptTokens >= CONTEXT_REBUILD_MINIMUM_PROMPT_TOKENS
+          && freshPromptTokens / point.promptTokens >= CONTEXT_REBUILD_FRESH_SHARE
+        ? 1
+        : 0,
+      contextSubagent: point.peakSubagentPromptTokens > 0 ? point.peakSubagentPromptTokens : null,
+      hitRatio: windowPromptTokens === 0 ? 0 : windowCacheReadTokens / windowPromptTokens,
+      idleGapMs: idleMs >= IDLE_GAP_MINIMUM_MS ? idleMs : 0,
+      noCacheTotal: nanoToUsd(point.cumulativeNoCacheCostNano),
+      observation,
+      output: nanoToUsd(useCumulativeCosts ? point.cumulativeOutputCostNano : point.outputCostNano),
+      pointHitRatio: point.promptTokens === 0 ? 0 : point.cacheReadTokens / point.promptTokens,
+      time: point.bucketStartMs,
+      total: nanoToUsd(useCumulativeCosts ? point.cumulativeTotalCostNano : point.totalCostNano),
+      trailingAverage: nanoToUsd(windowTotalNano / windowSize),
+      uncachedInput: nanoToUsd(useCumulativeCosts ? point.cumulativeInputCostNano : point.inputCostNano),
+    };
+  });
+}
+
+function createSeries(
+  kind: CostChartKind,
+  rows: readonly ChartRow[],
+  resolution: TimeseriesResolution | undefined,
+): (BarSeriesOption | LineSeriesOption)[] {
+  // Between-turn timeouts are a per-call story; at bucket resolution the many routine
+  // gaps between active buckets would paper every chart with markers.
+  const showIdleGaps = resolution === "call";
+  if (kind === "bucket") {
+    return [
+      {
+        ...createBarSeries("Cache read", "cacheRead"),
+        markLine: createEventMarkers(rows, "gaps-and-rebuilds", showIdleGaps),
+      },
+      createBarSeries("Cache creation", "cacheCreation"),
+      createBarSeries("Uncached input", "uncachedInput"),
+      createBarSeries("Output", "output"),
+      createOverlayLineSeries("Trailing avg", "trailingAverage"),
+    ];
+  }
+  if (kind === "cumulative") {
+    return [
+      {
+        ...createCumulativeAreaSeries("Cache read", "cacheRead"),
+        markLine: createEventMarkers(rows, "gaps-and-rebuilds", showIdleGaps),
+      },
+      createCumulativeAreaSeries("Cache creation", "cacheCreation"),
+      createCumulativeAreaSeries("Uncached input", "uncachedInput"),
+      createCumulativeAreaSeries("Output", "output"),
+      {
+        ...createOverlayLineSeries("Total", "total"),
+        id: TOTAL_SERIES_ID,
+        // Cleared on every rebuild so a hover line never outlives its data; the
+        // delta-to-end hover repopulates it.
+        markLine: { animation: false, data: [], silent: true, symbol: "none" },
+        step: "start",
+      },
+      {
+        ...createOverlayLineSeries("Without caching", "noCacheTotal"),
+        lineStyle: { type: "dashed", width: 1.5 },
+        step: "start",
+      },
+    ];
+  }
+  if (kind === "context") {
+    // Each line connects only its own calls, so the main context stays a readable
+    // sawtooth across subagent bursts instead of zigzagging down to their small prompts.
+    return [
+      {
+        areaStyle: { opacity: 0.18 },
+        connectNulls: true,
+        datasetIndex: 0,
+        encode: { x: "observation", y: "contextMain" },
+        lineStyle: { width: 1.5 },
+        markLine: createEventMarkers(rows, "gaps-and-rebuilds", showIdleGaps),
+        name: "Main agent",
+        showSymbol: false,
+        type: "line",
+      },
+      {
+        connectNulls: true,
+        datasetIndex: 0,
+        encode: { x: "observation", y: "contextSubagent" },
+        lineStyle: { width: 1.5 },
+        name: "Subagents",
+        showSymbol: false,
+        type: "line",
+      },
+    ];
+  }
+  return [{
+    datasetIndex: 0,
+    encode: { x: "observation", y: "hitRatio" },
+    lineStyle: { width: 1.5 },
+    markLine: createEventMarkers(rows, "gaps", showIdleGaps),
+    name: "Cache hit ratio",
+    showSymbol: false,
+    type: "line",
+  }];
+}
+
 function createBarSeries(name: string, dimension: string): BarSeriesOption {
   return {
     barMaxWidth: 24,
@@ -327,7 +523,157 @@ function createCumulativeAreaSeries(name: string, dimension: string): LineSeries
   };
 }
 
-function formatChartTooltip(parameters: unknown, rows: readonly ChartRow[]): string {
+function createOverlayLineSeries(name: string, dimension: string): LineSeriesOption {
+  return {
+    datasetIndex: 0,
+    encode: { x: "observation", y: dimension },
+    emphasis: { focus: "series" as const },
+    lineStyle: { width: 1.5 },
+    name,
+    showSymbol: false,
+    type: "line" as const,
+    z: 8,
+  };
+}
+
+type EventMarkerSelection = "gaps" | "gaps-and-rebuilds";
+
+function createEventMarkers(
+  rows: readonly ChartRow[],
+  selection: EventMarkerSelection,
+  showIdleGaps: boolean,
+): NonNullable<LineSeriesOption["markLine"]> {
+  const data: object[] = [];
+  for (const row of rows) {
+    if (showIdleGaps && row.idleGapMs > 0) {
+      data.push({
+        label: {
+          color: CHART_CHROME.axisLabel,
+          fontSize: 9,
+          formatter: `${formatIdleDuration(row.idleGapMs)} idle`,
+          position: "end" as const,
+          show: true,
+        },
+        lineStyle: { color: CHART_CHROME.axisLabel, type: "dashed" as const, width: 1 },
+        xAxis: row.observation,
+      });
+    } else if (selection === "gaps-and-rebuilds" && row.contextRebuild === 1) {
+      data.push({
+        label: { show: false },
+        lineStyle: {
+          color: CHART_SERIES_COLORS.contextSize,
+          opacity: 0.7,
+          type: "dashed" as const,
+          width: 1,
+        },
+        xAxis: row.observation,
+      });
+    }
+  }
+  return { animation: false, data: data as never, silent: true, symbol: "none" };
+}
+
+/**
+ * On hover, draws a dotted line from the hovered cumulative total to the end of the
+ * visible range, labelled with the cost still to come. Listens on this chart but fires
+ * for hovers on any connected chart, since the group shares its axis pointer.
+ */
+function attachDeltaToEndLine(
+  chart: ECharts,
+  pointsRef: { current: readonly TimeseriesPoint[] },
+  zoomWindowRef: { current: ChartZoomWindow | null },
+  lastIndexRef: { current: number | null },
+): () => void {
+  const applyDeltaLine = (hoverIndex: number | null) => {
+    if (hoverIndex === lastIndexRef.current) {
+      return;
+    }
+    lastIndexRef.current = hoverIndex;
+    chart.setOption({
+      series: [{
+        id: TOTAL_SERIES_ID,
+        markLine: createDeltaToEndMarkLine(pointsRef.current, zoomWindowRef.current, hoverIndex),
+      }],
+    }, { silent: true });
+  };
+  const handleAxisPointer = (event: unknown) => {
+    applyDeltaLine(readAxisPointerIndex(event, pointsRef.current.length));
+  };
+  const handleGlobalOut = () => applyDeltaLine(null);
+  chart.on("updateAxisPointer", handleAxisPointer);
+  chart.on("globalout", handleGlobalOut);
+  return () => {
+    chart.off("updateAxisPointer", handleAxisPointer);
+    chart.off("globalout", handleGlobalOut);
+  };
+}
+
+export function createDeltaToEndMarkLine(
+  points: readonly TimeseriesPoint[],
+  zoomWindow: ChartZoomWindow | null,
+  hoverIndex: number | null,
+): NonNullable<LineSeriesOption["markLine"]> {
+  const empty = { animation: false, data: [], silent: true, symbol: "none" } as const;
+  if (hoverIndex === null) {
+    return { ...empty, data: [] };
+  }
+  const endIndex = restoreChartZoom(points, zoomWindow)?.endValue ?? points.length - 1;
+  const hoverPoint = points[hoverIndex];
+  const endPoint = points[endIndex];
+  if (hoverPoint === undefined || endPoint === undefined || hoverIndex >= endIndex) {
+    return { ...empty, data: [] };
+  }
+  const hoverTotalUsd = nanoToUsd(hoverPoint.cumulativeTotalCostNano);
+  const remainingUsd = nanoToUsd(endPoint.cumulativeTotalCostNano) - hoverTotalUsd;
+  if (remainingUsd <= 0) {
+    return { ...empty, data: [] };
+  }
+  return {
+    ...empty,
+    data: [[
+      { coord: [hoverIndex, hoverTotalUsd] },
+      {
+        coord: [endIndex, hoverTotalUsd],
+        label: {
+          color: CHART_SERIES_COLORS.total,
+          distance: 4,
+          fontSize: 10,
+          formatter: `+${formatChartUsd(remainingUsd)} to end`,
+          position: "insideEndTop" as const,
+          show: true,
+        },
+        lineStyle: { color: CHART_SERIES_COLORS.total, type: "dotted" as const, width: 1 },
+      },
+    ]] as never,
+  };
+}
+
+function readAxisPointerIndex(event: unknown, pointCount: number): number | null {
+  if (!isRecord(event) || !Array.isArray(event.axesInfo)) {
+    return null;
+  }
+  const axisInfo = event.axesInfo.find((info: unknown) => isRecord(info) && info.axisDim === "x");
+  if (!isRecord(axisInfo) || typeof axisInfo.value !== "number") {
+    return null;
+  }
+  const index = Math.round(axisInfo.value);
+  return index >= 0 && index < pointCount ? index : null;
+}
+
+function expectedSpacingMs(resolution: TimeseriesResolution | undefined): number {
+  if (resolution === "minute") return 60_000;
+  if (resolution === "hour") return 3_600_000;
+  if (resolution === "day") return 86_400_000;
+  if (resolution === "week") return 7 * 86_400_000;
+  return 0;
+}
+
+function formatChartTooltip(
+  parameters: unknown,
+  rows: readonly ChartRow[],
+  kind: CostChartKind,
+  resolution: TimeseriesResolution | undefined,
+): string {
   const firstParameter = Array.isArray(parameters) ? parameters[0] : parameters;
   if (!isRecord(firstParameter) || typeof firstParameter.dataIndex !== "number") {
     return "";
@@ -337,14 +683,50 @@ function formatChartTooltip(parameters: unknown, rows: readonly ChartRow[]): str
     return "";
   }
 
-  return [
-    `<strong>${formatChartTime(row.time, "tooltip")}</strong>`,
+  const lines = [`<strong>${formatChartTime(row.time, "tooltip")}</strong>`];
+  if (row.idleGapMs > 0) {
+    lines.push(`After ${formatIdleDuration(row.idleGapMs)} idle`);
+  }
+  const windowLabel = `trailing ${formatTrailingWindow(resolution)}`;
+
+  if (kind === "context") {
+    if (row.contextMain !== null) {
+      lines.push(`Main agent: ${formatTokenCount(row.contextMain)} tokens`);
+    }
+    if (row.contextSubagent !== null) {
+      lines.push(`Subagents: ${formatTokenCount(row.contextSubagent)} tokens`);
+    }
+    lines.push(`Read from cache: ${formatShare(row.pointHitRatio)}`);
+    if (row.contextRebuild === 1) {
+      lines.push("Context rebuilt here (compaction or cold start)");
+    }
+    return lines.join("<br>");
+  }
+  if (kind === "cacheHitRatio") {
+    lines.push(`Cache hit ratio: ${formatShare(row.hitRatio)} (${windowLabel})`);
+    lines.push(`This observation: ${formatShare(row.pointHitRatio)}`);
+    return lines.join("<br>");
+  }
+
+  lines.push(
     `Uncached input: ${formatChartUsd(row.uncachedInput)}`,
     `Cache creation: ${formatChartUsd(row.cacheCreation)}`,
     `Cache read: ${formatChartUsd(row.cacheRead)}`,
     `Output: ${formatChartUsd(row.output)}`,
     `Total: ${formatChartUsd(row.total)}`,
-  ].join("<br>");
+  );
+  if (kind === "bucket") {
+    lines.push(`Trailing avg: ${formatChartUsd(row.trailingAverage)} (${windowLabel})`);
+  }
+  if (kind === "cumulative") {
+    lines.push(`Without caching: ${formatChartUsd(row.noCacheTotal)}`);
+    const lastRow = rows.at(-1);
+    if (lastRow !== undefined && lastRow.total > row.total) {
+      const remaining = lastRow.total - row.total;
+      lines.push(`Remaining to end: ${formatChartUsd(remaining)} (${formatShare(remaining / lastRow.total)})`);
+    }
+  }
+  return lines.join("<br>");
 }
 
 function formatObservationTime(
@@ -368,6 +750,16 @@ function formatAxisValue(rows: readonly ChartRow[], rawValue: unknown, detail: "
   return formatObservationTime(rows, axisValue, detail);
 }
 
+function formatYAxisValue(value: number, kind: CostChartKind): string {
+  if (kind === "context") {
+    return formatTokenCount(value);
+  }
+  if (kind === "cacheHitRatio") {
+    return formatShare(value);
+  }
+  return formatChartUsd(value);
+}
+
 function formatChartTime(timestampMs: number, detail: "axis" | "tooltip"): string {
   return detail === "tooltip"
     ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(timestampMs)
@@ -383,6 +775,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function nanoToUsd(costNano: number): number {
+  return costNano / 1_000_000_000;
+}
+
 function formatChartUsd(value: number): string {
   if (Math.abs(value) < 0.01 && value !== 0) {
     return `$${value.toFixed(4)}`;
@@ -393,4 +789,29 @@ function formatChartUsd(value: number): string {
     notation: value >= 10_000 ? "compact" : "standard",
     style: "currency",
   }).format(value);
+}
+
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+    notation: "compact",
+  }).format(value);
+}
+
+function formatShare(ratio: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+    style: "percent",
+  }).format(ratio);
+}
+
+function formatIdleDuration(durationMs: number): string {
+  const hours = durationMs / 3_600_000;
+  if (hours >= 48) {
+    return `${Math.round(hours / 24)}d`;
+  }
+  if (hours >= 10) {
+    return `${Math.round(hours)}h`;
+  }
+  return `${Number(hours.toFixed(1))}h`;
 }
