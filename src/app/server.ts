@@ -50,9 +50,18 @@ const monitor = new SessionMonitor(importer, {
     hub.publish("scan-status");
   },
   prepareForReconciliation: async (trigger) => {
+    const isStartup = trigger === "startup";
+    if (isStartup) {
+      console.log("Detecting Claude account status...");
+    }
     const refresh = await meteredUsage.refreshClaudeAccount(
-      trigger === "manual" || trigger === "startup",
+      trigger === "manual" || isStartup,
     );
+    if (isStartup) {
+      console.log(refresh.error === null
+        ? `Claude account status: OK (${meteredUsage.getClaudeStatus().subscriptionType ?? "unknown plan"})`
+        : `Claude account status: ${refresh.error}`);
+    }
     if (refresh.affectedFingerprints.length > 0) {
       ledger.rebuildCanonicalCalls(refresh.affectedFingerprints);
       hub.publish("metering-policy");

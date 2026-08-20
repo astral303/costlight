@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-const CLAUDE_AUTH_STATUS_TIMEOUT_MS = 5_000;
+/** Generous because `claude auth status` can be slow to start on managed networks. */
+const CLAUDE_AUTH_STATUS_TIMEOUT_MS = 15_000;
 
 const claudeAuthStatusSchema = z.object({
   apiProvider: z.string().min(1),
@@ -46,7 +47,7 @@ export async function detectClaudeAccount(
       new Response(child.stdout).text(),
     ]);
     if (didTimeOut) {
-      throw new Error("Claude account detection timed out.");
+      throw new Error(`Claude account detection timed out after ${timeoutMs / 1_000}s.`);
     }
     if (exitCode !== 0) {
       throw new Error(`Claude account detection exited with status ${exitCode}.`);
