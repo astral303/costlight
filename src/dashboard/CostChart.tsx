@@ -304,9 +304,16 @@ export function createChartOption(
     },
     xAxis: {
       axisLabel: {
+        // Tucking the outermost labels inward keeps their overhang from insetting the
+        // plot: with containLabel, a centred last label would pull the grid's right
+        // edge in by half the label's width.
+        alignMaxLabel: "right",
+        alignMinLabel: "left",
         color: CHART_CHROME.axisLabel,
         formatter: (value) => formatAxisValue(rows, value, "axis"),
         hideOverlap: true,
+        showMaxLabel: true,
+        showMinLabel: true,
       },
       axisLine: { lineStyle: { color: CHART_CHROME.axisLine } },
       axisPointer: {
