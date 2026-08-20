@@ -169,6 +169,100 @@ describe("dashboard queries", () => {
       expect(timeseries.points.map((point) => point.callCount)).toEqual([1, 1]);
       expect(timeseries.points.map((point) => point.totalCostNano)).toEqual([460_000_000, 460_000_000]);
       expect(timeseries.points.at(-1)?.cumulativeTotalCostNano).toBe(920_000_000);
+      expect(timeseries.points.map((point) => point.promptTokens)).toEqual([420, 420]);
+      expect(timeseries.points.map((point) => point.peakMainPromptTokens)).toEqual([420, 420]);
+      expect(timeseries.points.map((point) => point.peakSubagentPromptTokens)).toEqual([0, 0]);
+      expect(timeseries.points.map((point) => point.cacheReadTokens)).toEqual([300, 300]);
+      // Without a stored rate row the counterfactual has nothing to price against.
+      expect(timeseries.points.map((point) => point.noCacheExtraCostNano)).toEqual([0, 0]);
+      expect(timeseries.points.at(-1)?.cumulativeNoCacheCostNano).toBe(920_000_000);
+    } finally {
+      database.close();
+    }
+  });
+
+  test("splits the peak prompt between main and subagent calls", () => {
+    const database = openDashboardDatabase(":memory:");
+    try {
+      insertSource(database, "session-a", "main", "main", 100, "wire-a");
+      insertSource(database, "session-b", "agent-0", "sub", 200, "wire-b");
+      const ledger = new CallLedger(database, callPricing(() => ({
+        basis: "test catalog",
+        cacheCreation1hNanoPerToken: 1_000_000,
+        cacheCreation5mNanoPerToken: 1_000_000,
+        cacheCreationNanoPerToken: 1_000_000,
+        cacheReadNanoPerToken: 1_000_000,
+        confidence: "exact",
+        inputNanoPerToken: 1_000_000,
+        outputNanoPerToken: 1_000_000,
+        rateId: null,
+        resolvedModelKey: "moonshotai/kimi-k3",
+      })));
+      ledger.recordUsage({
+        agentId: "main",
+        generation: 0,
+        sessionId: "session-a",
+        sourcePath: "wire-a",
+      }, createUsage("main-request", 1_000));
+      ledger.recordUsage({
+        agentId: "agent-0",
+        generation: 0,
+        sessionId: "session-b",
+        sourcePath: "wire-b",
+      }, createUsage("subagent-request", 2_000));
+
+      const bucketed = queryTimeseries(database, { ...filters, bucket: "day" });
+      const subagentCalls = queryTimeseries(database, { ...filters, sessionId: "session-b" });
+
+      expect(bucketed.resolution).toBe("day");
+      expect(bucketed.points).toHaveLength(1);
+      expect(bucketed.points[0]?.peakMainPromptTokens).toBe(420);
+      expect(bucketed.points[0]?.peakSubagentPromptTokens).toBe(420);
+      expect(subagentCalls.points.map((point) => point.peakMainPromptTokens)).toEqual([0]);
+      expect(subagentCalls.points.map((point) => point.peakSubagentPromptTokens)).toEqual([420]);
+    } finally {
+      database.close();
+    }
+  });
+
+  test("prices the no-cache counterfactual from each call's stored rate", () => {
+    const database = openDashboardDatabase(":memory:");
+    try {
+      insertSource(database, "session-a", "main", "main", 100, "wire-a");
+      database.query(`
+        INSERT INTO model_rates (
+          rate_id, provider, model_key, input_nano_per_token, output_nano_per_token,
+          cache_read_nano_per_token, cache_creation_nano_per_token,
+          source_name, confidence, created_at_ms
+        ) VALUES (7, 'moonshotai', 'moonshotai/kimi-k3', 1000, 5000, 100, 1250, 'test catalog', 'exact', 0)
+      `).run();
+      const ledger = new CallLedger(database, callPricing(() => ({
+        basis: "test catalog",
+        cacheCreation1hNanoPerToken: 1_250,
+        cacheCreation5mNanoPerToken: 1_250,
+        cacheCreationNanoPerToken: 1_250,
+        cacheReadNanoPerToken: 100,
+        confidence: "exact",
+        inputNanoPerToken: 1_000,
+        outputNanoPerToken: 5_000,
+        rateId: 7,
+        resolvedModelKey: "moonshotai/kimi-k3",
+      })));
+      ledger.recordUsage({
+        agentId: "main",
+        generation: 0,
+        sessionId: "session-a",
+        sourcePath: "wire-a",
+      }, createUsage("priced-request", 1_000));
+
+      const timeseries = queryTimeseries(database, { ...filters, sessionId: "session-a" });
+
+      // 300 cache-read tokens at the 1_000 input rate instead of the 100 read rate.
+      const expectedExtraNano = 300 * 1_000 - 300 * 100;
+      expect(timeseries.points.map((point) => point.noCacheExtraCostNano))
+        .toEqual([expectedExtraNano]);
+      expect(timeseries.points.at(-1)?.cumulativeNoCacheCostNano)
+        .toBe((timeseries.points.at(-1)?.cumulativeTotalCostNano ?? 0) + expectedExtraNano);
     } finally {
       database.close();
     }

@@ -301,6 +301,30 @@
   padding: 0 4px 7px;
 }
 
+.chart-panel-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chart-option-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 0 0;
+  color: var(--color-text-9);
+  cursor: pointer;
+  font-size: 0.62rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.chart-option-toggle input {
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
 .panel-heading h2 {
   margin: 0;
   color: var(--color-text-1);

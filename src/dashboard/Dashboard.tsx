@@ -9,7 +9,7 @@ import type {
   SessionFilterOption,
   SessionRow,
 } from "./contracts";
-import { formatUsdNano } from "./formatting";
+import { formatTrailingWindow, formatUsdNano } from "./formatting";
 import {
   initialDashboardFilters,
   type DashboardViewFilters,
@@ -25,9 +25,12 @@ const CostChart = lazy(async () => {
 export function Dashboard() {
   const [filters, setFilters] = useState<DashboardViewFilters>(initialDashboardFilters);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [isCumulativeAxisAnchored, setCumulativeAxisAnchored] = useState(false);
   const dashboard = useDashboardData(filters);
   const summary = dashboard.summary;
   const sortedSessions = sortSessions(dashboard.sessions, filters.sessionSort);
+  const timeseriesResolution = dashboard.timeseries?.resolution;
+  const isCallResolution = timeseriesResolution === "call";
 
   function updateFilter<Key extends keyof DashboardViewFilters>(
     key: Key,
@@ -132,25 +135,73 @@ export function Dashboard() {
       <section className="chart-grid">
         <article className="dashboard-panel chart-panel">
           <PanelHeading
-            title={dashboard.timeseries?.resolution === "call" ? "API cost by call" : "API cost by active bucket"}
-            detail={dashboard.timeseries?.resolution === "call"
+            title={isCallResolution ? "API cost by call" : "API cost by active bucket"}
+            detail={isCallResolution
               ? "One bar per call · idle time removed"
-              : `${dashboard.timeseries?.resolution ?? "automatic"} buckets · idle time removed`}
+              : `${timeseriesResolution ?? "automatic"} buckets · idle time removed`}
           />
           <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
             <CostChart
               kind="bucket"
               points={dashboard.timeseries?.points ?? []}
+              resolution={timeseriesResolution}
               zoomContext={dashboard.zoomContext}
             />
           </Suspense>
         </article>
         <article className="dashboard-panel chart-panel">
-          <PanelHeading title="Cumulative API cost" detail="Idle time removed" />
+          <div className="chart-panel-heading-row">
+            <PanelHeading
+              title="Cumulative API cost"
+              detail={isCallResolution
+                ? "Idle time removed · gold dashes mark rebuilt context"
+                : "Idle time removed"}
+            />
+            <label className="chart-option-toggle">
+              <input
+                type="checkbox"
+                checked={isCumulativeAxisAnchored}
+                onChange={(event) => setCumulativeAxisAnchored(event.target.checked)}
+              />
+              <span>Fit y-axis to data</span>
+            </label>
+          </div>
           <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
             <CostChart
+              anchorYAxisToData={isCumulativeAxisAnchored}
               kind="cumulative"
               points={dashboard.timeseries?.points ?? []}
+              resolution={timeseriesResolution}
+              zoomContext={dashboard.zoomContext}
+            />
+          </Suspense>
+        </article>
+        <article className="dashboard-panel chart-panel">
+          <PanelHeading
+            title="Context size"
+            detail={isCallResolution
+              ? "Prompt tokens per call · gold dashes mark rebuilt context (compaction or cold start)"
+              : "Peak prompt tokens per bucket, by agent kind"}
+          />
+          <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
+            <CostChart
+              kind="context"
+              points={dashboard.timeseries?.points ?? []}
+              resolution={timeseriesResolution}
+              zoomContext={dashboard.zoomContext}
+            />
+          </Suspense>
+        </article>
+        <article className="dashboard-panel chart-panel">
+          <PanelHeading
+            title="Cache hit ratio"
+            detail={`Share of prompt tokens read from cache · trailing ${formatTrailingWindow(timeseriesResolution)}`}
+          />
+          <Suspense fallback={<div className="chart-loading">Loading chart…</div>}>
+            <CostChart
+              kind="cacheHitRatio"
+              points={dashboard.timeseries?.points ?? []}
+              resolution={timeseriesResolution}
               zoomContext={dashboard.zoomContext}
             />
           </Suspense>

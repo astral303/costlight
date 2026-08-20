@@ -10,12 +10,33 @@
  */
 
 /**
- * A categorical scale: adjacent series only have to stay apart from one another. These
- * deliberately do not track the UI palette — series 1 sharing the brand green is a
- * coincidence of value, not a shared meaning, and tying them would move the chart
- * whenever a status colour was retuned.
+ * One colour per charted entity, so a series keeps its colour when the stack is
+ * reordered or it appears on another chart. These deliberately do not track the UI
+ * palette — series sharing the brand green is a coincidence of value, not a shared
+ * meaning, and tying them would move the chart whenever a status colour was retuned.
+ *
+ * Derived views reuse the colour of what they derive from: the trailing-average line
+ * wears `total`, and the cache-hit-ratio line wears `cacheRead`.
+ *
+ * Checked against the dark panel surface (#11171e) with the data-viz palette validator:
+ * adjacent-pair CVD separation, normal-vision separation, and 3:1 contrast all pass.
+ * The scale runs lighter than the validator's dark-mode lightness band; that is the
+ * shipped style on this near-black surface, not an accident of the two newest entries.
+ *
+ * The validation unit is the chart, not the whole map: hues that never share a chart
+ * (subagentContext blue vs cacheCreation teal, withoutCaching pink vs cacheCreation teal)
+ * sit closer than the in-chart floor, and each panel's legend names its series.
  */
-export const CHART_SERIES_COLORS = ["#65d6ad", "#42a5c6", "#8b7cf6", "#f0a04b", "#f5f7fa"];
+export const CHART_SERIES_COLORS = {
+  cacheCreation: "#42a5c6",
+  cacheRead: "#8b7cf6",
+  contextSize: "#e3c06b",
+  output: "#f0a04b",
+  subagentContext: "#6aa9f7",
+  total: "#f5f7fa",
+  uncachedInput: "#65d6ad",
+  withoutCaching: "#e88bb8",
+} as const;
 
 /**
  * Chart chrome, which does mirror the interface: the gridline is the table's row rule and

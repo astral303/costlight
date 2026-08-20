@@ -35,15 +35,25 @@ describe("chart chrome tracks the interface palette", () => {
 
 /**
  * The series scale shares no meaning with the interface palette, so it is deliberately
- * not asserted against any token. This guards the count and distinctness instead, which
- * are the properties a categorical scale actually has to hold.
+ * not asserted against any token. This guards the entity list and distinctness instead,
+ * which are the properties a categorical scale actually has to hold.
  */
 describe("the series scale", () => {
-  test("covers every series the chart draws", () => {
-    expect(CHART_SERIES_COLORS).toHaveLength(5);
+  test("names every charted entity", () => {
+    expect(Object.keys(CHART_SERIES_COLORS).toSorted()).toEqual([
+      "cacheCreation",
+      "cacheRead",
+      "contextSize",
+      "output",
+      "subagentContext",
+      "total",
+      "uncachedInput",
+      "withoutCaching",
+    ]);
   });
 
   test("has no repeated colour", () => {
-    expect(new Set(CHART_SERIES_COLORS).size).toBe(CHART_SERIES_COLORS.length);
+    const colors = Object.values(CHART_SERIES_COLORS);
+    expect(new Set(colors).size).toBe(colors.length);
   });
 });
