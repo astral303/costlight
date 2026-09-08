@@ -61,10 +61,12 @@ describe("remote pricing catalogs", () => {
 `)).toThrow("unmapped model");
   });
 
-  test("recognizes only explicit Pro-metered Fable aliases", () => {
+  test("meters every Fable release on Pro and nothing else", () => {
     expect(isProMeteredClaudeModel("claude-fable-5")).toBe(true);
-    expect(isProMeteredClaudeModel("anthropic/claude-fable-5")).toBe(true);
-    expect(isProMeteredClaudeModel("claude-fable-5-preview")).toBe(false);
+    expect(isProMeteredClaudeModel("claude-fable-5-1")).toBe(true);
+    expect(isProMeteredClaudeModel("anthropic/claude-fable-5-1")).toBe(true);
+    expect(isProMeteredClaudeModel("claude-mythos-5-1")).toBe(false);
+    expect(isProMeteredClaudeModel("claude-opus-5")).toBe(false);
     expect(isProMeteredClaudeModel("my-claude-fable-5")).toBe(false);
   });
 

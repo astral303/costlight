@@ -31,10 +31,11 @@ const officialModelKeys = new Map<string, readonly string[]>([
   ["Claude Haiku 3.5", ["claude-3-5-haiku-20241022"]],
 ]);
 
-const proMeteredModelKeys = new Set(["claude-fable-5"]);
+const PRO_METERED_MODEL_KEY_PREFIX = "claude-fable-";
 
+/** Pro subscriptions meter every Fable release as external API usage. */
 export function isProMeteredClaudeModel(rawModel: string): boolean {
-  return proMeteredModelKeys.has(modelKeyFromRawModel(rawModel));
+  return modelKeyFromRawModel(rawModel).startsWith(PRO_METERED_MODEL_KEY_PREFIX);
 }
 
 export function parseAnthropicPricingMarkdown(content: string): readonly CatalogRate[] {
