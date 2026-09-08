@@ -4,14 +4,16 @@ import { usdPerMillionToNanoPerToken } from "./bundled-rates";
 const ANTHROPIC_SOURCE_NAME = "anthropic";
 const MODEL_PRICING_HEADERS = [
   "Model",
-  "Base Input Tokens",
-  "5m Cache Writes",
-  "1h Cache Writes",
-  "Cache Hits & Refreshes",
-  "Output Tokens",
-] as const;
+  "Base input tokens",
+  "5m cache writes",
+  "1h cache writes",
+  "Cache hits and refreshes",
+  "Output tokens",
+].map(normalizeHeader);
 
 const officialModelKeys = new Map<string, readonly string[]>([
+  ["Claude Fable 5.1", ["claude-fable-5-1"]],
+  ["Claude Mythos 5.1", ["claude-mythos-5-1"]],
   ["Claude Fable 5", ["claude-fable-5"]],
   ["Claude Mythos 5", ["claude-mythos-5"]],
   ["Claude Opus 5", ["claude-opus-5"]],
@@ -38,7 +40,7 @@ export function isProMeteredClaudeModel(rawModel: string): boolean {
 export function parseAnthropicPricingMarkdown(content: string): readonly CatalogRate[] {
   const lines = content.split(/\r?\n/);
   const headerIndex = lines.findIndex((line) => {
-    const columns = columnsFromMarkdownRow(line);
+    const columns = columnsFromMarkdownRow(line).map(normalizeHeader);
     return columns.length === MODEL_PRICING_HEADERS.length
       && columns.every((column, index) => column === MODEL_PRICING_HEADERS[index]);
   });
@@ -92,13 +94,19 @@ function columnsFromMarkdownRow(line: string): readonly string[] {
   return trimmed.slice(1, -1).split("|").map((column) => column.trim());
 }
 
+/** The page has switched between title case and sentence case and between `&` and `and`. */
+function normalizeHeader(column: string): string {
+  return column.toLowerCase().replace("&", "and");
+}
+
 function modelDisplayName(value: string): string {
   const annotationIndex = value.indexOf(" ([");
   return annotationIndex === -1 ? value : value.slice(0, annotationIndex);
 }
 
+/** A trailing digit after `MTok` is a footnote marker, as in `$0.25 / MTok1`. */
 function parseUsdPerMillion(value: string | undefined): number {
-  const match = /^\$(\d+(?:\.\d+)?)\s*\/\s*MTok$/.exec(value ?? "");
+  const match = /^\$(\d+(?:\.\d+)?)\s*\/\s*MTok\d?$/.exec(value ?? "");
   const parsed = match === null ? Number.NaN : Number(match[1]);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error(`Invalid Anthropic model price: ${value ?? "missing"}`);

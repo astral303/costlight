@@ -33,6 +33,18 @@ describe("remote pricing catalogs", () => {
     }]);
   });
 
+  test("parses sentence-case headers and footnote markers on prices", () => {
+    const rates = parseAnthropicPricingMarkdown(`
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+|---|---:|---:|---:|---:|---:|
+| Claude Fable 5.1 | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok1 | $50 / MTok |
+| Claude Mythos 5.1 ([limited availability](https://anthropic.com/glasswing)) | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok1 | $50 / MTok |
+`);
+
+    expect(rates.map((rate) => rate.modelKey)).toEqual(["claude-fable-5-1", "claude-mythos-5-1"]);
+    expect(rates[0]).toMatchObject({ cacheReadNanoPerToken: 250, inputNanoPerToken: 10_000 });
+  });
+
   test("rejects malformed official Anthropic prices", () => {
     expect(() => parseAnthropicPricingMarkdown(`
 | Model | Base Input Tokens | 5m Cache Writes | 1h Cache Writes | Cache Hits & Refreshes | Output Tokens |
