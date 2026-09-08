@@ -199,7 +199,7 @@ describe("PricingCatalog", () => {
           provider: "anthropic",
           refreshStatus: "not-attempted",
           sourceKind: "bundled",
-          sourceName: "bundled-claude-2026-08-14",
+          sourceName: "bundled-claude-2026-09-08",
           updatedAtMs: null,
         }),
         expect.objectContaining({
