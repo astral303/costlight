@@ -25,7 +25,7 @@ interface BundledUsdRate {
 }
 
 const KIMI_BUNDLED_SOURCE = "bundled-kimi-2026-08-09";
-const CLAUDE_BUNDLED_SOURCE = "bundled-claude-2026-09-08";
+const CLAUDE_BUNDLED_SOURCE = "bundled-claude-2026-09-23";
 
 const bundledUsdRates: readonly BundledUsdRate[] = [
   kimiRate("kimi-k3", 3, 0.3, 15),
@@ -40,8 +40,9 @@ const bundledUsdRates: readonly BundledUsdRate[] = [
   kimiRate("kimi-k2-turbo-preview", 1.15, 0.15, 8),
   claudeRate("claude-fable-5-1", 10, 0.25, 50),
   claudeRate("claude-fable-5", 10, 1, 50),
+  claudeRate("claude-opus-5-5", 4, 0.2, 20),
   claudeRate("claude-opus-5", 5, 0.5, 25),
-  claudeRate("claude-haiku-4-5-20251001", 1, 0.1, 5),
+  claudeRate("claude-haiku-4-5", 1, 0.1, 5),
 ];
 
 function kimiRate(

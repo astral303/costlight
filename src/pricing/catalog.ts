@@ -4,6 +4,7 @@ import { mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import type { RateQuote } from "../call-accounting/ledger";
 import { resolveProvider } from "../call-accounting/fingerprint";
+import { modelKeyFromRawModel, undatedModelKey } from "./anthropic-catalog";
 import { bundledRates, type CatalogRate } from "./bundled-rates";
 import { loadPricingOverrides } from "./overrides";
 import { remoteCatalogs, type RemoteCatalogDefinition } from "./remote-catalogs";
@@ -73,9 +74,27 @@ export class PricingCatalog {
     this.#replaceStaticRates("user-override", overrides);
   }
 
+  /** Remote rates carry undated keys; a dated transcript key such as `claude-opus-4-5-20251101` also matches `claude-opus-4-5`. */
   resolve(rawModel: string, timestampMs: number): RateQuote | null {
     const provider = resolveProvider(rawModel);
     const modelKey = modelKeyFromRawModel(rawModel);
+    const undatedKey = undatedModelKey(modelKey);
+    const candidateKeys = undatedKey === modelKey ? [modelKey] : [modelKey, undatedKey];
+    for (const candidateKey of candidateKeys) {
+      const rate = this.#bestActiveRate(rawModel, provider, candidateKey, timestampMs);
+      if (rate !== undefined) {
+        return rateQuoteFrom(rate, provider);
+      }
+    }
+    return null;
+  }
+
+  #bestActiveRate(
+    rawModel: string,
+    provider: string,
+    modelKey: string,
+    timestampMs: number,
+  ): StoredRate | undefined {
     const rates = this.#database
       .query<StoredRate, [string, string, string, number]>(`
         SELECT
@@ -100,23 +119,7 @@ export class PricingCatalog {
           AND rate.is_active = 1
       `)
       .all(rawModel, provider, modelKey, timestampMs);
-    const rate = rates.sort(compareRatePriority)[0];
-    if (rate === undefined) {
-      return null;
-    }
-
-    return {
-      basis: describeRateBasis(rate),
-      cacheCreation1hNanoPerToken: rate.cache_creation_1h_nano_per_token,
-      cacheCreation5mNanoPerToken: rate.cache_creation_5m_nano_per_token,
-      cacheCreationNanoPerToken: rate.cache_creation_nano_per_token,
-      cacheReadNanoPerToken: rate.cache_read_nano_per_token,
-      confidence: rate.confidence,
-      inputNanoPerToken: rate.input_nano_per_token,
-      outputNanoPerToken: rate.output_nano_per_token,
-      rateId: rate.rate_id,
-      resolvedModelKey: `${provider}/${rate.model_key}`,
-    };
+    return rates.sort(compareRatePriority)[0];
   }
 
   resolveByRateId(rateId: number): RateQuote | null {
@@ -131,21 +134,7 @@ export class PricingCatalog {
         WHERE rate_id = ?
       `)
       .get(rateId);
-    if (rate === null) {
-      return null;
-    }
-    return {
-      basis: describeRateBasis(rate),
-      cacheCreation1hNanoPerToken: rate.cache_creation_1h_nano_per_token,
-      cacheCreation5mNanoPerToken: rate.cache_creation_5m_nano_per_token,
-      cacheCreationNanoPerToken: rate.cache_creation_nano_per_token,
-      cacheReadNanoPerToken: rate.cache_read_nano_per_token,
-      confidence: rate.confidence,
-      inputNanoPerToken: rate.input_nano_per_token,
-      outputNanoPerToken: rate.output_nano_per_token,
-      rateId: rate.rate_id,
-      resolvedModelKey: `${rate.provider}/${rate.model_key}`,
-    };
+    return rate === null ? null : rateQuoteFrom(rate, rate.provider);
   }
 
   async refreshIfStale(): Promise<readonly CatalogRefreshResult[]> {
@@ -543,16 +532,26 @@ export interface ProviderPricingStatus {
   updatedAtMs: number | null;
 }
 
+function rateQuoteFrom(rate: StoredRate, provider: string): RateQuote {
+  return {
+    basis: describeRateBasis(rate),
+    cacheCreation1hNanoPerToken: rate.cache_creation_1h_nano_per_token,
+    cacheCreation5mNanoPerToken: rate.cache_creation_5m_nano_per_token,
+    cacheCreationNanoPerToken: rate.cache_creation_nano_per_token,
+    cacheReadNanoPerToken: rate.cache_read_nano_per_token,
+    confidence: rate.confidence,
+    inputNanoPerToken: rate.input_nano_per_token,
+    outputNanoPerToken: rate.output_nano_per_token,
+    rateId: rate.rate_id,
+    resolvedModelKey: `${provider}/${rate.model_key}`,
+  };
+}
+
 function describeRateBasis(rate: StoredRate): string {
   const cacheCreationNote = rate.confidence === "inferred"
     ? "; cache creation uses the normal input rate"
     : "";
   return `${rate.source_name}${cacheCreationNote}`;
-}
-
-function modelKeyFromRawModel(rawModel: string): string {
-  const separatorIndex = rawModel.indexOf("/");
-  return separatorIndex === -1 ? rawModel : rawModel.slice(separatorIndex + 1);
 }
 
 function errorMessage(error: unknown): string {

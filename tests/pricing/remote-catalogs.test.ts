@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   isProMeteredClaudeModel,
   parseAnthropicPricingMarkdown,
+  undatedModelKey,
 } from "../../src/pricing/anthropic-catalog";
 import { parseLiteLlmCatalog, parseModelsDevCatalog } from "../../src/pricing/remote-catalogs";
 
@@ -54,12 +55,36 @@ describe("remote pricing catalogs", () => {
 `)).toThrow("Invalid Anthropic model price");
   });
 
-  test("rejects official models without an explicit transcript alias", () => {
+  test("derives undated model keys from official display names", () => {
+    const rates = parseAnthropicPricingMarkdown(`
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+|---|---:|---:|---:|---:|---:|
+| Claude Opus 5.5 | $4 / MTok | $5 / MTok | $8 / MTok | $0.20 / MTok<sup>2</sup> | $20 / MTok |
+| Claude Opus 4.5 | $5 / MTok | $6.25 / MTok | $10 / MTok | $0.50 / MTok | $25 / MTok |
+| Claude Opus 4 ([retired](#deprecations)) | $15 / MTok | $18.75 / MTok | $30 / MTok | $1.50 / MTok | $75 / MTok |
+| Claude Haiku 3.5 | $0.80 / MTok | $1 / MTok | $1.60 / MTok | $0.08 / MTok | $4 / MTok |
+`);
+
+    expect(rates.map((rate) => rate.modelKey)).toEqual([
+      "claude-opus-5-5",
+      "claude-opus-4-5",
+      "claude-opus-4",
+      "claude-3-5-haiku-20241022",
+    ]);
+  });
+
+  test("rejects official models whose display name does not follow the family-version shape", () => {
     expect(() => parseAnthropicPricingMarkdown(`
 | Model | Base Input Tokens | 5m Cache Writes | 1h Cache Writes | Cache Hits & Refreshes | Output Tokens |
 |---|---:|---:|---:|---:|---:|
-| Unknown Claude | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.20 / MTok | $10 / MTok |
-`)).toThrow("unmapped model");
+| Claude Mythos Preview | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.20 / MTok | $10 / MTok |
+`)).toThrow("cannot be derived from its display name");
+  });
+
+  test("strips the snapshot date from dated model ids", () => {
+    expect(undatedModelKey("claude-opus-4-5-20251101")).toBe("claude-opus-4-5");
+    expect(undatedModelKey("claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(undatedModelKey("kimi-k2-0905-preview")).toBe("kimi-k2-0905-preview");
   });
 
   test("meters every Fable release on Pro and nothing else", () => {

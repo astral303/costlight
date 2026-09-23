@@ -11,25 +11,12 @@ const MODEL_PRICING_HEADERS = [
   "Output tokens",
 ].map(normalizeHeader);
 
-const officialModelKeys = new Map<string, readonly string[]>([
-  ["Claude Fable 5.1", ["claude-fable-5-1"]],
-  ["Claude Mythos 5.1", ["claude-mythos-5-1"]],
-  ["Claude Fable 5", ["claude-fable-5"]],
-  ["Claude Mythos 5", ["claude-mythos-5"]],
-  ["Claude Opus 5", ["claude-opus-5"]],
-  ["Claude Opus 4.8", ["claude-opus-4-8"]],
-  ["Claude Opus 4.7", ["claude-opus-4-7"]],
-  ["Claude Opus 4.6", ["claude-opus-4-6"]],
-  ["Claude Opus 4.5", ["claude-opus-4-5-20251101"]],
-  ["Claude Opus 4.1", ["claude-opus-4-1-20250805"]],
-  ["Claude Opus 4", ["claude-opus-4-20250514"]],
-  ["Claude Sonnet 5", ["claude-sonnet-5"]],
-  ["Claude Sonnet 4.6", ["claude-sonnet-4-6"]],
-  ["Claude Sonnet 4.5", ["claude-sonnet-4-5-20250929"]],
-  ["Claude Sonnet 4", ["claude-sonnet-4-20250514"]],
-  ["Claude Haiku 4.5", ["claude-haiku-4-5-20251001"]],
-  ["Claude Haiku 3.5", ["claude-3-5-haiku-20241022"]],
+/** Claude 3.x keys put the version before the family name. */
+const irregularModelKeys = new Map<string, string>([
+  ["Claude Haiku 3.5", "claude-3-5-haiku-20241022"],
 ]);
+
+const FAMILY_VERSION_DISPLAY_NAME_PATTERN = /^Claude [A-Z][a-z]+ \d+(?:\.\d+)?$/;
 
 const PRO_METERED_MODEL_KEY_PREFIX = "claude-fable-";
 
@@ -54,33 +41,26 @@ export function parseAnthropicPricingMarkdown(content: string): readonly Catalog
     if (!line.trimStart().startsWith("|")) break;
     const columns = columnsFromMarkdownRow(line);
     if (columns.length !== MODEL_PRICING_HEADERS.length) continue;
-    const displayName = modelDisplayName(columns[0] ?? "");
-    const modelKeys = officialModelKeys.get(displayName);
-    if (modelKeys === undefined) {
-      throw new Error(`Anthropic pricing included an unmapped model: ${displayName}`);
-    }
-
+    const modelKey = modelKeyFromDisplayName(modelDisplayName(columns[0] ?? ""));
     const input = parseUsdPerMillion(columns[1]);
     const cacheCreation5m = parseUsdPerMillion(columns[2]);
     const cacheCreation1h = parseUsdPerMillion(columns[3]);
     const cacheRead = parseUsdPerMillion(columns[4]);
     const output = parseUsdPerMillion(columns[5]);
-    for (const modelKey of modelKeys) {
-      rates.push({
-        cacheCreation1hNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation1h),
-        cacheCreation5mNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation5m),
-        cacheCreationNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation5m),
-        cacheReadNanoPerToken: usdPerMillionToNanoPerToken(cacheRead),
-        confidence: "exact",
-        effectiveAtMs: null,
-        inputNanoPerToken: usdPerMillionToNanoPerToken(input),
-        modelKey,
-        outputNanoPerToken: usdPerMillionToNanoPerToken(output),
-        provider: "anthropic",
-        rawAlias: null,
-        sourceName: ANTHROPIC_SOURCE_NAME,
-      });
-    }
+    rates.push({
+      cacheCreation1hNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation1h),
+      cacheCreation5mNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation5m),
+      cacheCreationNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation5m),
+      cacheReadNanoPerToken: usdPerMillionToNanoPerToken(cacheRead),
+      confidence: "exact",
+      effectiveAtMs: null,
+      inputNanoPerToken: usdPerMillionToNanoPerToken(input),
+      modelKey,
+      outputNanoPerToken: usdPerMillionToNanoPerToken(output),
+      provider: "anthropic",
+      rawAlias: null,
+      sourceName: ANTHROPIC_SOURCE_NAME,
+    });
   }
 
   if (rates.length === 0) {
@@ -105,6 +85,20 @@ function modelDisplayName(value: string): string {
   return annotationIndex === -1 ? value : value.slice(0, annotationIndex);
 }
 
+/** `Claude Opus 5.5` becomes `claude-opus-5-5`; dated transcript keys reach this rate through `undatedModelKey`. */
+function modelKeyFromDisplayName(displayName: string): string {
+  const irregularModelKey = irregularModelKeys.get(displayName);
+  if (irregularModelKey !== undefined) {
+    return irregularModelKey;
+  }
+  if (!FAMILY_VERSION_DISPLAY_NAME_PATTERN.test(displayName)) {
+    throw new Error(
+      `Anthropic pricing included a model whose id cannot be derived from its display name: ${displayName}`,
+    );
+  }
+  return displayName.toLowerCase().replaceAll(/[ .]/g, "-");
+}
+
 /** A trailing digit after `MTok` is a footnote marker, bare (`MTok1`) or in `<sup>1</sup>`. */
 function parseUsdPerMillion(value: string | undefined): number {
   const match = /^\$(\d+(?:\.\d+)?)\s*\/\s*MTok(?:\d|<sup>\d+<\/sup>)?$/.exec(value ?? "");
@@ -118,4 +112,9 @@ function parseUsdPerMillion(value: string | undefined): number {
 export function modelKeyFromRawModel(rawModel: string): string {
   const separatorIndex = rawModel.indexOf("/");
   return separatorIndex === -1 ? rawModel : rawModel.slice(separatorIndex + 1);
+}
+
+/** The `-YYYYMMDD` suffix is a snapshot date, not part of the pricing key. */
+export function undatedModelKey(modelKey: string): string {
+  return modelKey.replace(/-\d{8}$/, "");
 }
