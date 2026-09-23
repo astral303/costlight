@@ -105,9 +105,9 @@ function modelDisplayName(value: string): string {
   return annotationIndex === -1 ? value : value.slice(0, annotationIndex);
 }
 
-/** A trailing digit after `MTok` is a footnote marker, as in `$0.25 / MTok1`. */
+/** A trailing digit after `MTok` is a footnote marker, bare (`MTok1`) or in `<sup>1</sup>`. */
 function parseUsdPerMillion(value: string | undefined): number {
-  const match = /^\$(\d+(?:\.\d+)?)\s*\/\s*MTok\d?$/.exec(value ?? "");
+  const match = /^\$(\d+(?:\.\d+)?)\s*\/\s*MTok(?:\d|<sup>\d+<\/sup>)?$/.exec(value ?? "");
   const parsed = match === null ? Number.NaN : Number(match[1]);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new Error(`Invalid Anthropic model price: ${value ?? "missing"}`);

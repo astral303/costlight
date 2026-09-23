@@ -38,11 +38,12 @@ describe("remote pricing catalogs", () => {
 | Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
 |---|---:|---:|---:|---:|---:|
 | Claude Fable 5.1 | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok1 | $50 / MTok |
-| Claude Mythos 5.1 ([limited availability](https://anthropic.com/glasswing)) | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok1 | $50 / MTok |
+| Claude Mythos 5.1 ([limited availability](https://anthropic.com/glasswing)) | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok<sup>1</sup> | $50 / MTok |
 `);
 
     expect(rates.map((rate) => rate.modelKey)).toEqual(["claude-fable-5-1", "claude-mythos-5-1"]);
     expect(rates[0]).toMatchObject({ cacheReadNanoPerToken: 250, inputNanoPerToken: 10_000 });
+    expect(rates[1]).toMatchObject({ cacheReadNanoPerToken: 250 });
   });
 
   test("rejects malformed official Anthropic prices", () => {
