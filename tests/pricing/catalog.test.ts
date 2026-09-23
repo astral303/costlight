@@ -57,6 +57,24 @@ describe("PricingCatalog", () => {
     }
   });
 
+  test("resolves a dated Claude id through its undated rate", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+
+      expect(catalog.resolve("claude-haiku-4-5-20251001", Date.now())).toMatchObject({
+        inputNanoPerToken: 1_000,
+        outputNanoPerToken: 5_000,
+        resolvedModelKey: "anthropic/claude-haiku-4-5",
+      });
+      expect(catalog.resolve("claude-haiku-4-4-20251001", Date.now())).toBeNull();
+    } finally {
+      database.close();
+    }
+  });
+
   test("gives an exact raw-alias override precedence over bundled pricing", async () => {
     const dataDirectory = await createTemporaryDirectory();
     await writeFile(join(dataDirectory, "pricing-overrides.json"), JSON.stringify({
@@ -199,7 +217,7 @@ describe("PricingCatalog", () => {
           provider: "anthropic",
           refreshStatus: "not-attempted",
           sourceKind: "bundled",
-          sourceName: "bundled-claude-2026-09-08",
+          sourceName: "bundled-claude-2026-09-23",
           updatedAtMs: null,
         }),
         expect.objectContaining({
