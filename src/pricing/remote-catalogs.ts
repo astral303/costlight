@@ -1,5 +1,9 @@
 import type { CatalogRate } from "./bundled-rates";
-import { usdPerMillionToNanoPerToken, usdPerTokenToNanoPerToken } from "./bundled-rates";
+import {
+  ANY_PROMPT_LENGTH,
+  usdPerMillionToNanoPerToken,
+  usdPerTokenToNanoPerToken,
+} from "./bundled-rates";
 import { parseAnthropicPricingMarkdown } from "./anthropic-catalog";
 
 export interface RemoteCatalogDefinition {
@@ -58,6 +62,7 @@ export function parseModelsDevCatalog(value: unknown): readonly CatalogRate[] {
     const cacheRead = nonnegativeNumber(rawModel.cost.cache_read) ?? input;
     const cacheCreation = nonnegativeNumber(rawModel.cost.cache_write);
     rates.push({
+      ...ANY_PROMPT_LENGTH,
       cacheCreation1hNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation ?? input),
       cacheCreation5mNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation ?? input),
       cacheCreationNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation ?? input),
@@ -98,6 +103,7 @@ export function parseLiteLlmCatalog(value: unknown): readonly CatalogRate[] {
     const cacheRead = nonnegativeNumber(rawModel.cache_read_input_token_cost) ?? input;
     const cacheCreation = nonnegativeNumber(rawModel.cache_creation_input_token_cost);
     rates.push({
+      ...ANY_PROMPT_LENGTH,
       cacheCreation1hNanoPerToken: usdPerTokenToNanoPerToken(cacheCreation ?? input),
       cacheCreation5mNanoPerToken: usdPerTokenToNanoPerToken(cacheCreation ?? input),
       cacheCreationNanoPerToken: usdPerTokenToNanoPerToken(cacheCreation ?? input),

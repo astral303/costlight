@@ -15,11 +15,15 @@ export interface RateQuote {
   resolvedModelKey: string;
 }
 
-export type RateResolver = (rawModel: string, timestampMs: number) => RateQuote | null;
+export type RateResolver = (
+  rawModel: string,
+  timestampMs: number,
+  promptTokens: number,
+) => RateQuote | null;
 
 export interface CallPricing {
   resolve: RateResolver;
-  resolveByRateId: (rateId: number) => RateQuote | null;
+  resolveByRateId: (rateId: number, promptTokens: number) => RateQuote | null;
 }
 
 export interface MeteringAssignment {
@@ -298,17 +302,20 @@ export class CallLedger {
         .get(eventFingerprint);
     const hasUnchangedUsage = storedPricing !== null
       && usageMatches(storedPricing, billableUsageOccurrence);
+    const promptTokens = promptTokenCount(billableUsageOccurrence);
+    const resolveCurrentRate = () => this.#pricing.resolve(
+      attributionOccurrence.raw_model,
+      attributionOccurrence.timestamp_ms,
+      promptTokens,
+    );
     const rateQuote = storedPricing === null || shouldReprice
-      ? this.#pricing.resolve(attributionOccurrence.raw_model, attributionOccurrence.timestamp_ms)
+      ? resolveCurrentRate()
       : hasUnchangedUsage
         ? null
         : (storedPricing.rate_id === null
           ? null
-          : this.#pricing.resolveByRateId(storedPricing.rate_id))
-          ?? this.#pricing.resolve(
-            attributionOccurrence.raw_model,
-            attributionOccurrence.timestamp_ms,
-          );
+          : this.#pricing.resolveByRateId(storedPricing.rate_id, promptTokens))
+          ?? resolveCurrentRate();
     const costs = storedPricing === null || !hasUnchangedUsage || shouldReprice
       ? calculateCosts(billableUsageOccurrence, rateQuote)
       : {
@@ -421,6 +428,14 @@ function calculateCosts(occurrence: StoredOccurrence, rateQuote: RateQuote | nul
     output,
     total: input + cacheCreation + cacheRead + output,
   };
+}
+
+function promptTokenCount(occurrence: StoredOccurrence): number {
+  return occurrence.input_other_tokens
+    + occurrence.cache_creation_tokens
+    + occurrence.cache_creation_5m_tokens
+    + occurrence.cache_creation_1h_tokens
+    + occurrence.cache_read_tokens;
 }
 
 function usageMatches(stored: StoredPricing, occurrence: StoredOccurrence): boolean {

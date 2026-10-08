@@ -1,4 +1,23 @@
-export interface CatalogRate {
+/**
+ * The prompt lengths a rate prices, in prompt tokens: uncached input plus cache reads and writes.
+ * `null` leaves that end of the tier open.
+ */
+export interface PromptLengthTier {
+  promptTokensOver: number | null;
+  promptTokensUpTo: number | null;
+}
+
+export const ANY_PROMPT_LENGTH: PromptLengthTier = { promptTokensOver: null, promptTokensUpTo: null };
+
+export function promptsUpTo(promptTokens: number): PromptLengthTier {
+  return { promptTokensOver: null, promptTokensUpTo: promptTokens };
+}
+
+export function promptsOver(promptTokens: number): PromptLengthTier {
+  return { promptTokensOver: promptTokens, promptTokensUpTo: null };
+}
+
+export interface CatalogRate extends PromptLengthTier {
   cacheCreation1hNanoPerToken: number;
   cacheCreation5mNanoPerToken: number;
   cacheCreationNanoPerToken: number;
@@ -20,12 +39,14 @@ interface BundledUsdRate {
   inputUsdPerMillion: number;
   modelKey: string;
   outputUsdPerMillion: number;
+  promptLengthTier: PromptLengthTier;
   provider: string;
   sourceName: string;
 }
 
 const KIMI_BUNDLED_SOURCE = "bundled-kimi-2026-08-09";
-const CLAUDE_BUNDLED_SOURCE = "bundled-claude-2026-09-23";
+const CLAUDE_BUNDLED_SOURCE = "bundled-claude-2026-10-08";
+const HAIKU_5_5_PROMPT_TIER_BOUNDARY_TOKENS = 100_000;
 
 const bundledUsdRates: readonly BundledUsdRate[] = [
   kimiRate("kimi-k3", 3, 0.3, 15),
@@ -42,6 +63,8 @@ const bundledUsdRates: readonly BundledUsdRate[] = [
   claudeRate("claude-fable-5", 10, 1, 50),
   claudeRate("claude-opus-5-5", 4, 0.2, 20),
   claudeRate("claude-opus-5", 5, 0.5, 25),
+  claudeRate("claude-haiku-5-5", 0.1, 0.01, 0.5, promptsUpTo(HAIKU_5_5_PROMPT_TIER_BOUNDARY_TOKENS)),
+  claudeRate("claude-haiku-5-5", 0.5, 0.05, 2.5, promptsOver(HAIKU_5_5_PROMPT_TIER_BOUNDARY_TOKENS)),
   claudeRate("claude-haiku-4-5", 1, 0.1, 5),
 ];
 
@@ -56,6 +79,7 @@ function kimiRate(
     inputUsdPerMillion,
     modelKey,
     outputUsdPerMillion,
+    promptLengthTier: ANY_PROMPT_LENGTH,
     provider: "moonshotai",
     sourceName: KIMI_BUNDLED_SOURCE,
   };
@@ -66,6 +90,7 @@ function claudeRate(
   inputUsdPerMillion: number,
   cacheReadUsdPerMillion: number,
   outputUsdPerMillion: number,
+  promptLengthTier = ANY_PROMPT_LENGTH,
 ): BundledUsdRate {
   return {
     cacheCreation1hUsdPerMillion: inputUsdPerMillion * 2,
@@ -74,12 +99,14 @@ function claudeRate(
     inputUsdPerMillion,
     modelKey,
     outputUsdPerMillion,
+    promptLengthTier,
     provider: "anthropic",
     sourceName: CLAUDE_BUNDLED_SOURCE,
   };
 }
 
 export const bundledRates: readonly CatalogRate[] = bundledUsdRates.map((rate) => ({
+  ...rate.promptLengthTier,
   cacheCreation1hNanoPerToken: usdPerMillionToNanoPerToken(
     rate.cacheCreation1hUsdPerMillion ?? rate.inputUsdPerMillion,
   ),

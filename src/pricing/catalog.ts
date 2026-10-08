@@ -21,13 +21,34 @@ interface StoredRate {
   input_nano_per_token: number;
   model_key: string;
   output_nano_per_token: number;
+  prompt_tokens_over: number | null;
+  prompt_tokens_up_to: number | null;
+  provider: string;
   rate_id: number;
   raw_alias: string | null;
   source_name: string;
 }
 
-interface StoredRateById extends StoredRate {
+const STORED_RATE_COLUMNS_SQL = `
+  rate.rate_id, rate.provider, rate.model_key, rate.raw_alias,
+  rate.input_nano_per_token, rate.output_nano_per_token,
+  rate.cache_read_nano_per_token, rate.cache_creation_nano_per_token,
+  rate.cache_creation_5m_nano_per_token, rate.cache_creation_1h_nano_per_token,
+  rate.prompt_tokens_over, rate.prompt_tokens_up_to,
+  rate.source_name, rate.confidence, rate.effective_at_ms
+`;
+
+/** Takes the call's prompt token count as two bound parameters. */
+const RATE_PRICES_PROMPT_LENGTH_SQL = `
+  (rate.prompt_tokens_over IS NULL OR rate.prompt_tokens_over < ?)
+  AND (rate.prompt_tokens_up_to IS NULL OR rate.prompt_tokens_up_to >= ?)
+`;
+
+interface RateLookup {
+  promptTokens: number;
   provider: string;
+  rawModel: string;
+  timestampMs: number;
 }
 
 interface LastSnapshot {
@@ -75,65 +96,71 @@ export class PricingCatalog {
   }
 
   /** Remote rates carry undated keys; a dated transcript key such as `claude-opus-4-5-20251101` also matches `claude-opus-4-5`. */
-  resolve(rawModel: string, timestampMs: number): RateQuote | null {
-    const provider = resolveProvider(rawModel);
+  resolve(rawModel: string, timestampMs: number, promptTokens: number): RateQuote | null {
+    const lookup: RateLookup = {
+      promptTokens,
+      provider: resolveProvider(rawModel),
+      rawModel,
+      timestampMs,
+    };
     const modelKey = modelKeyFromRawModel(rawModel);
     const undatedKey = undatedModelKey(modelKey);
     const candidateKeys = undatedKey === modelKey ? [modelKey] : [modelKey, undatedKey];
     for (const candidateKey of candidateKeys) {
-      const rate = this.#bestActiveRate(rawModel, provider, candidateKey, timestampMs);
+      const rate = this.#bestActiveRate(lookup, candidateKey);
       if (rate !== undefined) {
-        return rateQuoteFrom(rate, provider);
+        return rateQuoteFrom(rate, lookup.provider);
       }
     }
     return null;
   }
 
-  #bestActiveRate(
-    rawModel: string,
-    provider: string,
-    modelKey: string,
-    timestampMs: number,
-  ): StoredRate | undefined {
+  #bestActiveRate(lookup: RateLookup, modelKey: string): StoredRate | undefined {
     const rates = this.#database
-      .query<StoredRate, [string, string, string, number]>(`
-        SELECT
-          rate.rate_id,
-          rate.model_key,
-          rate.raw_alias,
-          rate.input_nano_per_token,
-          rate.output_nano_per_token,
-          rate.cache_read_nano_per_token,
-          rate.cache_creation_nano_per_token,
-          rate.cache_creation_5m_nano_per_token,
-          rate.cache_creation_1h_nano_per_token,
-          rate.source_name,
-          rate.confidence,
-          rate.effective_at_ms
+      .query<StoredRate, [string, string, string, number, number, number]>(`
+        SELECT ${STORED_RATE_COLUMNS_SQL}
         FROM model_rates AS rate
         LEFT JOIN pricing_snapshots AS snapshot ON snapshot.snapshot_id = rate.snapshot_id
         WHERE
           (rate.raw_alias = ? OR (rate.raw_alias IS NULL AND rate.provider = ? AND rate.model_key = ?))
           AND (rate.effective_at_ms IS NULL OR rate.effective_at_ms <= ?)
+          AND ${RATE_PRICES_PROMPT_LENGTH_SQL}
           AND (rate.snapshot_id IS NULL OR snapshot.is_last_good = 1)
           AND rate.is_active = 1
       `)
-      .all(rawModel, provider, modelKey, timestampMs);
+      .all(
+        lookup.rawModel,
+        lookup.provider,
+        modelKey,
+        lookup.timestampMs,
+        lookup.promptTokens,
+        lookup.promptTokens,
+      );
     return rates.sort(compareRatePriority)[0];
   }
 
-  resolveByRateId(rateId: number): RateQuote | null {
+  /**
+   * Prices `promptTokens` with the tier from `rateId`'s rate set that covers it. The stored row
+   * comes first while its tier covers the prompt, because edited overrides leave earlier rows
+   * under the same source name.
+   */
+  resolveByRateId(rateId: number, promptTokens: number): RateQuote | null {
     const rate = this.#database
-      .query<StoredRateById, [number]>(`
-        SELECT rate_id, provider, model_key, raw_alias,
-               input_nano_per_token, output_nano_per_token,
-               cache_read_nano_per_token, cache_creation_nano_per_token,
-               cache_creation_5m_nano_per_token, cache_creation_1h_nano_per_token,
-               source_name, confidence, effective_at_ms
-        FROM model_rates
-        WHERE rate_id = ?
+      .query<StoredRate, [number, number, number]>(`
+        SELECT ${STORED_RATE_COLUMNS_SQL}
+        FROM model_rates AS stored
+        JOIN model_rates AS rate
+          ON rate.provider = stored.provider
+          AND rate.model_key = stored.model_key
+          AND rate.raw_alias IS stored.raw_alias
+          AND rate.source_name = stored.source_name
+          AND rate.snapshot_id IS stored.snapshot_id
+          AND rate.effective_at_ms IS stored.effective_at_ms
+        WHERE stored.rate_id = ? AND ${RATE_PRICES_PROMPT_LENGTH_SQL}
+        ORDER BY rate.rate_id = stored.rate_id DESC
+        LIMIT 1
       `)
-      .get(rateId);
+      .get(rateId, promptTokens, promptTokens);
     return rate === null ? null : rateQuoteFrom(rate, rate.provider);
   }
 
@@ -427,6 +454,8 @@ export class PricingCatalog {
         number,
         number,
         number,
+        number | null,
+        number | null,
         string,
         string,
         number | null,
@@ -443,6 +472,8 @@ export class PricingCatalog {
           AND cache_creation_nano_per_token = ?
           AND cache_creation_5m_nano_per_token = ?
           AND cache_creation_1h_nano_per_token = ?
+          AND prompt_tokens_over IS ?
+          AND prompt_tokens_up_to IS ?
           AND source_name = ?
           AND confidence = ?
           AND effective_at_ms IS ?
@@ -460,6 +491,8 @@ export class PricingCatalog {
         rate.cacheCreationNanoPerToken,
         rate.cacheCreation5mNanoPerToken,
         rate.cacheCreation1hNanoPerToken,
+        rate.promptTokensOver,
+        rate.promptTokensUpTo,
         rate.sourceName,
         rate.confidence,
         rate.effectiveAtMs,
@@ -472,8 +505,9 @@ export class PricingCatalog {
         snapshot_id, provider, model_key, raw_alias, input_nano_per_token,
         output_nano_per_token, cache_read_nano_per_token, cache_creation_nano_per_token,
         cache_creation_5m_nano_per_token, cache_creation_1h_nano_per_token,
+        prompt_tokens_over, prompt_tokens_up_to,
         source_name, confidence, effective_at_ms, created_at_ms
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const createdAtMs = Date.now();
     for (const rate of rates) {
@@ -488,6 +522,8 @@ export class PricingCatalog {
         rate.cacheCreationNanoPerToken,
         rate.cacheCreation5mNanoPerToken,
         rate.cacheCreation1hNanoPerToken,
+        rate.promptTokensOver,
+        rate.promptTokensUpTo,
         rate.sourceName,
         rate.confidence,
         rate.effectiveAtMs,
@@ -551,7 +587,19 @@ function describeRateBasis(rate: StoredRate): string {
   const cacheCreationNote = rate.confidence === "inferred"
     ? "; cache creation uses the normal input rate"
     : "";
-  return `${rate.source_name}${cacheCreationNote}`;
+  return `${rate.source_name}${describePromptLengthTier(rate)}${cacheCreationNote}`;
+}
+
+function describePromptLengthTier(rate: StoredRate): string {
+  const bounds = [
+    rate.prompt_tokens_over === null ? null : `over ${formatTokenCount(rate.prompt_tokens_over)}`,
+    rate.prompt_tokens_up_to === null ? null : `up to ${formatTokenCount(rate.prompt_tokens_up_to)}`,
+  ].filter((bound) => bound !== null);
+  return bounds.length === 0 ? "" : `; prompts ${bounds.join(" and ")} tokens`;
+}
+
+function formatTokenCount(tokens: number): string {
+  return tokens.toLocaleString("en-US");
 }
 
 function errorMessage(error: unknown): string {

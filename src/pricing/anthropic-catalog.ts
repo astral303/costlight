@@ -1,5 +1,10 @@
-import type { CatalogRate } from "./bundled-rates";
-import { usdPerMillionToNanoPerToken } from "./bundled-rates";
+import type { CatalogRate, PromptLengthTier } from "./bundled-rates";
+import {
+  ANY_PROMPT_LENGTH,
+  promptsOver,
+  promptsUpTo,
+  usdPerMillionToNanoPerToken,
+} from "./bundled-rates";
 
 const ANTHROPIC_SOURCE_NAME = "anthropic";
 const MODEL_PRICING_HEADERS = [
@@ -17,6 +22,8 @@ const irregularModelKeys = new Map<string, string>([
 ]);
 
 const FAMILY_VERSION_DISPLAY_NAME_PATTERN = /^Claude [A-Z][a-z]+ \d+(?:\.\d+)?$/;
+const PROMPT_LENGTH_TIER_ANNOTATION_PATTERN =
+  / \(for prompts (?<bound>up to|over) (?<promptTokens>\d{1,3}(?:,\d{3})*) tokens\)$/;
 
 const PRO_METERED_MODEL_KEY_PREFIX = "claude-fable-";
 
@@ -41,13 +48,17 @@ export function parseAnthropicPricingMarkdown(content: string): readonly Catalog
     if (!line.trimStart().startsWith("|")) break;
     const columns = columnsFromMarkdownRow(line);
     if (columns.length !== MODEL_PRICING_HEADERS.length) continue;
-    const modelKey = modelKeyFromDisplayName(modelDisplayName(columns[0] ?? ""));
+    const { displayName, promptLengthTier } = splitPromptLengthTier(
+      modelDisplayName(columns[0] ?? ""),
+    );
+    const modelKey = modelKeyFromDisplayName(displayName);
     const input = parseUsdPerMillion(columns[1]);
     const cacheCreation5m = parseUsdPerMillion(columns[2]);
     const cacheCreation1h = parseUsdPerMillion(columns[3]);
     const cacheRead = parseUsdPerMillion(columns[4]);
     const output = parseUsdPerMillion(columns[5]);
     rates.push({
+      ...promptLengthTier,
       cacheCreation1hNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation1h),
       cacheCreation5mNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation5m),
       cacheCreationNanoPerToken: usdPerMillionToNanoPerToken(cacheCreation5m),
@@ -66,6 +77,7 @@ export function parseAnthropicPricingMarkdown(content: string): readonly Catalog
   if (rates.length === 0) {
     throw new Error("Anthropic pricing contained no recognized model rates.");
   }
+  assertEachModelPricesEveryPromptLengthOnce(rates);
   return rates;
 }
 
@@ -83,6 +95,52 @@ function normalizeHeader(column: string): string {
 function modelDisplayName(value: string): string {
   const annotationIndex = value.indexOf(" ([");
   return annotationIndex === -1 ? value : value.slice(0, annotationIndex);
+}
+
+function splitPromptLengthTier(modelName: string): {
+  displayName: string;
+  promptLengthTier: PromptLengthTier;
+} {
+  const match = PROMPT_LENGTH_TIER_ANNOTATION_PATTERN.exec(modelName);
+  if (match?.groups === undefined) {
+    return { displayName: modelName, promptLengthTier: ANY_PROMPT_LENGTH };
+  }
+  const promptTokens = Number(match.groups.promptTokens?.replaceAll(",", ""));
+  return {
+    displayName: modelName.slice(0, match.index),
+    promptLengthTier: match.groups.bound === "up to"
+      ? promptsUpTo(promptTokens)
+      : promptsOver(promptTokens),
+  };
+}
+
+/** A gap would leave some calls unpriced, and an overlap would make their price ambiguous. */
+function assertEachModelPricesEveryPromptLengthOnce(rates: readonly CatalogRate[]): void {
+  const tiersByModelKey = new Map<string, CatalogRate[]>();
+  for (const rate of rates) {
+    tiersByModelKey.set(rate.modelKey, [...tiersByModelKey.get(rate.modelKey) ?? [], rate]);
+  }
+  for (const [modelKey, tiers] of tiersByModelKey) {
+    if (!tiersCoverEveryPromptLengthOnce(tiers)) {
+      throw new Error(`Anthropic pricing for ${modelKey} does not price every prompt length exactly once.`);
+    }
+  }
+}
+
+function tiersCoverEveryPromptLengthOnce(tiers: readonly PromptLengthTier[]): boolean {
+  const orderedTiers = tiers.toSorted((left, right) => (
+    (left.promptTokensOver ?? -1) - (right.promptTokensOver ?? -1)
+  ));
+  return orderedTiers.every((tier, index) => {
+    const previousTier = orderedTiers[index - 1];
+    const startsWherePreviousTierEnds = previousTier === undefined
+      ? tier.promptTokensOver === null
+      : previousTier.promptTokensUpTo !== null
+        && tier.promptTokensOver === previousTier.promptTokensUpTo;
+    const isOpenEnded = tier.promptTokensUpTo === null;
+    const isLastTier = index === orderedTiers.length - 1;
+    return startsWherePreviousTierEnds && isOpenEnded === isLastTier;
+  });
 }
 
 /** `Claude Opus 5.5` becomes `claude-opus-5-5`; dated transcript keys reach this rate through `undatedModelKey`. */

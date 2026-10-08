@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { Database } from "bun:sqlite";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   type CallPricing,
   CallLedger,
@@ -15,6 +18,7 @@ import {
   querySummary,
   queryTimeseries,
 } from "../../src/dashboard/queries";
+import { PricingCatalog } from "../../src/pricing/catalog";
 import type { ParsedUsageRecord } from "../../src/session-import/types";
 
 const filters: DashboardFilters = {
@@ -265,6 +269,39 @@ describe("dashboard queries", () => {
         .toBe((timeseries.points.at(-1)?.cumulativeTotalCostNano ?? 0) + expectedExtraNano);
     } finally {
       database.close();
+    }
+  });
+
+  test("lists each Claude Haiku 5.5 prompt-length tier as its own model row", async () => {
+    const dataDirectory = await mkdtemp(join(tmpdir(), "costlight-queries-test-"));
+    const database = openDashboardDatabase(":memory:");
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+      insertSource(database, "session-a", "main", "main", 100, "transcript-a", {
+        provider: "anthropic",
+      });
+      const ledger = new CallLedger(database, catalog);
+      const identity = { agentId: "main", generation: 0, sessionId: "session-a", sourcePath: "transcript-a" };
+      const shortPrompt = { ...createUsage("short-prompt", 1_000), model: "claude-haiku-5-5" };
+      ledger.recordUsage(identity, shortPrompt);
+      ledger.recordUsage(identity, {
+        ...createUsage("long-prompt", 2_000),
+        byteOffset: 20,
+        model: "claude-haiku-5-5",
+        tokens: { ...shortPrompt.tokens, cacheRead: 200_000 },
+      });
+
+      expect(queryModels(database, filters).map((model) => [
+        model.pricingBasis,
+        model.inputUsdPerMillion,
+      ])).toEqual([
+        ["bundled-claude-2026-10-08; prompts over 100,000 tokens", 0.5],
+        ["bundled-claude-2026-10-08; prompts up to 100,000 tokens", 0.1],
+      ]);
+    } finally {
+      database.close();
+      await rm(dataDirectory, { force: true, recursive: true });
     }
   });
 

@@ -28,6 +28,8 @@ describe("remote pricing catalogs", () => {
       inputNanoPerToken: 10_000,
       modelKey: "claude-fable-5",
       outputNanoPerToken: 50_000,
+      promptTokensOver: null,
+      promptTokensUpTo: null,
       provider: "anthropic",
       rawAlias: null,
       sourceName: "anthropic",
@@ -81,6 +83,52 @@ describe("remote pricing catalogs", () => {
 `)).toThrow("cannot be derived from its display name");
   });
 
+  test("parses prompt-length tiers from the model name", () => {
+    const rates = parseAnthropicPricingMarkdown(`
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+|---|---:|---:|---:|---:|---:|
+| Claude Haiku 5.5 (for prompts up to 100,000 tokens) | $0.10 / MTok | $0.125 / MTok | $0.20 / MTok | $0.01 / MTok | $0.50 / MTok |
+| Claude Haiku 5.5 (for prompts over 100,000 tokens) | $0.50 / MTok | $0.625 / MTok | $1 / MTok | $0.05 / MTok | $2.50 / MTok |
+`);
+
+    expect(rates).toEqual([
+      expect.objectContaining({
+        cacheCreation5mNanoPerToken: 125,
+        cacheReadNanoPerToken: 10,
+        inputNanoPerToken: 100,
+        modelKey: "claude-haiku-5-5",
+        promptTokensOver: null,
+        promptTokensUpTo: 100_000,
+      }),
+      expect.objectContaining({
+        inputNanoPerToken: 500,
+        modelKey: "claude-haiku-5-5",
+        promptTokensOver: 100_000,
+        promptTokensUpTo: null,
+      }),
+    ]);
+  });
+
+  test.each([
+    ["a missing lower tier", ["Claude Haiku 5.5 (for prompts over 100,000 tokens)"]],
+    ["a missing upper tier", ["Claude Haiku 5.5 (for prompts up to 100,000 tokens)"]],
+    ["a gap", [
+      "Claude Haiku 5.5 (for prompts up to 100,000 tokens)",
+      "Claude Haiku 5.5 (for prompts over 200,000 tokens)",
+    ]],
+    ["an overlap", ["Claude Haiku 5.5", "Claude Haiku 5.5 (for prompts over 100,000 tokens)"]],
+    ["a repeated row", ["Claude Haiku 5.5", "Claude Haiku 5.5"]],
+  ])("rejects prompt-length tiers with %s", (_defect, modelNames) => {
+    const pricingTable = `
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+|---|---:|---:|---:|---:|---:|
+${modelNames.map((name) => `| ${name} | $1 / MTok | $1.25 / MTok | $2 / MTok | $0.10 / MTok | $5 / MTok |`).join("\n")}
+`;
+
+    expect(() => parseAnthropicPricingMarkdown(pricingTable))
+      .toThrow("does not price every prompt length exactly once");
+  });
+
   test("strips the snapshot date from dated model ids", () => {
     expect(undatedModelKey("claude-opus-4-5-20251101")).toBe("claude-opus-4-5");
     expect(undatedModelKey("claude-opus-5-5")).toBe("claude-opus-5-5");
@@ -121,6 +169,8 @@ describe("remote pricing catalogs", () => {
         inputNanoPerToken: 3_000,
         modelKey: "kimi-k3",
         outputNanoPerToken: 15_000,
+        promptTokensOver: null,
+        promptTokensUpTo: null,
         provider: "moonshotai",
         rawAlias: null,
         sourceName: "models.dev",

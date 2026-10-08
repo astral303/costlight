@@ -60,3 +60,12 @@ export const cacheWriteRateMigration = {
       ADD COLUMN cache_creation_1h_nano_per_token INTEGER NOT NULL DEFAULT 0;
   `,
 } as const;
+
+export const promptLengthTierMigration = {
+  version: 11,
+  name: "prompt-length rate tiers",
+  sql: `
+    ALTER TABLE model_rates ADD COLUMN prompt_tokens_over INTEGER;
+    ALTER TABLE model_rates ADD COLUMN prompt_tokens_up_to INTEGER;
+  `,
+} as const;
