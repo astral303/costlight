@@ -6,6 +6,7 @@ import { openDashboardDatabase } from "../../src/app/database";
 import { CallLedger } from "../../src/call-accounting/ledger";
 import { PricingCatalog } from "../../src/pricing/catalog";
 
+const SHORT_PROMPT_TOKENS = 1_000;
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -22,7 +23,7 @@ describe("PricingCatalog", () => {
       const catalog = new PricingCatalog(database, dataDirectory);
       await catalog.initialize();
 
-      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())).toMatchObject({
+      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS)).toMatchObject({
         cacheCreationNanoPerToken: 3_000,
         cacheReadNanoPerToken: 300,
         confidence: "bundled",
@@ -42,7 +43,7 @@ describe("PricingCatalog", () => {
       const catalog = new PricingCatalog(database, dataDirectory);
       await catalog.initialize();
 
-      expect(catalog.resolve("claude-fable-5", Date.now())).toMatchObject({
+      expect(catalog.resolve("claude-fable-5", Date.now(), SHORT_PROMPT_TOKENS)).toMatchObject({
         cacheCreation1hNanoPerToken: 20_000,
         cacheCreation5mNanoPerToken: 12_500,
         cacheCreationNanoPerToken: 12_500,
@@ -64,12 +65,95 @@ describe("PricingCatalog", () => {
       const catalog = new PricingCatalog(database, dataDirectory);
       await catalog.initialize();
 
-      expect(catalog.resolve("claude-haiku-4-5-20251001", Date.now())).toMatchObject({
+      expect(catalog.resolve("claude-haiku-4-5-20251001", Date.now(), SHORT_PROMPT_TOKENS)).toMatchObject({
         inputNanoPerToken: 1_000,
         outputNanoPerToken: 5_000,
         resolvedModelKey: "anthropic/claude-haiku-4-5",
       });
-      expect(catalog.resolve("claude-haiku-4-4-20251001", Date.now())).toBeNull();
+      expect(catalog.resolve("claude-haiku-4-4-20251001", Date.now(), SHORT_PROMPT_TOKENS)).toBeNull();
+    } finally {
+      database.close();
+    }
+  });
+
+  test("prices a Claude Haiku 5.5 prompt of 100,000 tokens at the lower tier and 100,001 at the upper", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+
+      const shortPromptRate = catalog.resolve("claude-haiku-5-5", Date.now(), 100_000);
+      const longPromptRate = catalog.resolve("claude-haiku-5-5", Date.now(), 100_001);
+      expect(shortPromptRate).toMatchObject({
+        basis: expect.stringMatching(/; prompts up to 100,000 tokens$/),
+        inputNanoPerToken: 100,
+      });
+      expect(longPromptRate).toMatchObject({
+        basis: expect.stringMatching(/; prompts over 100,000 tokens$/),
+        inputNanoPerToken: 500,
+      });
+    } finally {
+      database.close();
+    }
+  });
+
+  test("switches a stored rate to the other tier of its own rate set when the prompt crosses the tier boundary", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const database = openDashboardDatabase(":memory:");
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => (
+      String(input).endsWith("pricing.md")
+        ? new Response(`
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+|---|---:|---:|---:|---:|---:|
+| Claude Haiku 5.5 (for prompts up to 100,000 tokens) | $0.20 / MTok | $0.25 / MTok | $0.40 / MTok | $0.02 / MTok | $1 / MTok |
+| Claude Haiku 5.5 (for prompts over 100,000 tokens) | $1 / MTok | $1.25 / MTok | $2 / MTok | $0.10 / MTok | $5 / MTok |
+`)
+        : Response.json({})
+    )) as unknown as typeof fetch;
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await catalog.initialize();
+      const bundledShortPromptRate = catalog.resolve("claude-haiku-5-5", Date.now(), 100_000);
+      expect((await catalog.forceRefresh())[0]?.status).toBe("refreshed");
+
+      expect(catalog.resolve("claude-haiku-5-5", Date.now(), 100_001)).toMatchObject({
+        inputNanoPerToken: 1_000,
+      });
+      expect(catalog.resolveByRateId(bundledShortPromptRate?.rateId ?? 0, 100_001)).toMatchObject({
+        basis: "bundled-claude-2026-10-08; prompts over 100,000 tokens",
+        inputNanoPerToken: 500,
+      });
+      expect(catalog.resolveByRateId(bundledShortPromptRate?.rateId ?? 0, 100_000)).toMatchObject({
+        rateId: bundledShortPromptRate?.rateId,
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+      database.close();
+    }
+  });
+
+  test("keeps each override row's own price after the override is edited", async () => {
+    const dataDirectory = await createTemporaryDirectory();
+    const writeKimiOverride = (inputCostPerToken: number) => writeFile(
+      join(dataDirectory, "pricing-overrides.json"),
+      JSON.stringify({ "moonshot-ai/kimi-k3": { inputCostPerToken, outputCostPerToken: 0.00001 } }),
+      "utf8",
+    );
+    const database = openDashboardDatabase(":memory:");
+    try {
+      const catalog = new PricingCatalog(database, dataDirectory);
+      await writeKimiOverride(0.000002);
+      await catalog.initialize();
+      const originalRate = catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS);
+      await writeKimiOverride(0.000004);
+      await catalog.initialize();
+      const editedRate = catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS);
+
+      expect([originalRate, editedRate].map((rate) => (
+        catalog.resolveByRateId(rate?.rateId ?? 0, SHORT_PROMPT_TOKENS)?.inputNanoPerToken
+      ))).toEqual([2_000, 4_000]);
     } finally {
       database.close();
     }
@@ -90,7 +174,7 @@ describe("PricingCatalog", () => {
       const catalog = new PricingCatalog(database, dataDirectory);
       await catalog.initialize();
 
-      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())).toMatchObject({
+      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS)).toMatchObject({
         cacheCreationNanoPerToken: 4_000,
         cacheReadNanoPerToken: 200,
         confidence: "override",
@@ -139,7 +223,7 @@ describe("PricingCatalog", () => {
       const catalog = new PricingCatalog(database, dataDirectory);
       await catalog.initialize();
       expect((await catalog.forceRefresh()).every((result) => result.status === "refreshed")).toBe(true);
-      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken).toBe(2_500);
+      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS)?.inputNanoPerToken).toBe(2_500);
       expect(catalog.getProviderPricingStatuses()).toEqual([
         expect.objectContaining({
           isStale: false,
@@ -165,7 +249,7 @@ describe("PricingCatalog", () => {
 
       isOffline = true;
       expect((await catalog.forceRefresh()).every((result) => result.status === "failed")).toBe(true);
-      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken).toBe(2_500);
+      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS)?.inputNanoPerToken).toBe(2_500);
       expect(catalog.getProviderPricingStatuses()[0]).toMatchObject({
         provider: "anthropic",
         refreshStatus: "failed",
@@ -217,7 +301,7 @@ describe("PricingCatalog", () => {
           provider: "anthropic",
           refreshStatus: "not-attempted",
           sourceKind: "bundled",
-          sourceName: "bundled-claude-2026-09-23",
+          sourceName: "bundled-claude-2026-10-08",
           updatedAtMs: null,
         }),
         expect.objectContaining({
@@ -293,11 +377,11 @@ describe("PricingCatalog", () => {
       }
 
       expect((await catalog.forceRefresh())[0]?.status).toBe("refreshed");
-      expect(catalog.resolve("claude-fable-5", 1)?.rateId).toBe(historicalCall.rate_id);
+      expect(catalog.resolve("claude-fable-5", 1, SHORT_PROMPT_TOKENS)?.rateId).toBe(historicalCall.rate_id);
 
       anthropicPricing = anthropicPricingMarkdown(11);
       expect((await catalog.forceRefresh())[0]?.status).toBe("refreshed");
-      const currentRate = catalog.resolve("claude-fable-5", 1);
+      const currentRate = catalog.resolve("claude-fable-5", 1, SHORT_PROMPT_TOKENS);
       expect(currentRate).toMatchObject({ inputNanoPerToken: 11_000 });
       expect(currentRate?.rateId).not.toBe(historicalCall.rate_id);
       expect(database.query<{ is_active: number; input_nano_per_token: number }, [number]>(`
@@ -358,7 +442,7 @@ describe("PricingCatalog", () => {
         sourceKind: "remote",
         sourceName: "litellm",
       });
-      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now())?.inputNanoPerToken)
+      expect(catalog.resolve("moonshot-ai/kimi-k3", Date.now(), SHORT_PROMPT_TOKENS)?.inputNanoPerToken)
         .toBe(3_000);
       expect(reportedFailures).toEqual([{ provider: "moonshotai", sourceName: "models.dev" }]);
     } finally {

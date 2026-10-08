@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import type { CatalogRate } from "./bundled-rates";
-import { usdPerTokenToNanoPerToken } from "./bundled-rates";
+import { ANY_PROMPT_LENGTH, usdPerTokenToNanoPerToken } from "./bundled-rates";
 
 const overrideRateSchema = z.object({
   cacheCreation1hInputTokenCost: z.number().nonnegative().optional(),
@@ -37,6 +37,7 @@ export async function loadPricingOverrides(filePath: string): Promise<readonly C
       ? inputNanoPerToken
       : usdPerTokenToNanoPerToken(rate.cacheCreationInputTokenCost);
     return {
+      ...ANY_PROMPT_LENGTH,
       cacheCreation1hNanoPerToken: rate.cacheCreation1hInputTokenCost === undefined
         ? cacheCreationNanoPerToken
         : usdPerTokenToNanoPerToken(rate.cacheCreation1hInputTokenCost),

@@ -109,9 +109,11 @@ describe("dashboard database migrations", () => {
       expect(tableColumns(upgradedDatabase, "api_calls")).toContain(
         "cache_creation_1h_tokens",
       );
-      expect(tableColumns(upgradedDatabase, "model_rates")).toContain(
+      expect(tableColumns(upgradedDatabase, "model_rates")).toEqual(expect.arrayContaining([
         "cache_creation_1h_nano_per_token",
-      );
+        "prompt_tokens_over",
+        "prompt_tokens_up_to",
+      ]));
       expect(tableColumns(upgradedDatabase, "usage_occurrences")).toContain("account_state_id");
       expect(tableColumns(upgradedDatabase, "api_calls")).toContain("is_metered");
       expect(tableColumns(upgradedDatabase, "agents")).toContain("agent_key");

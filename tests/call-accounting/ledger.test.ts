@@ -302,6 +302,47 @@ describe("CallLedger", () => {
     }
   });
 
+  test("looks up rates by prompt tokens: uncached input plus cache writes and cache reads", () => {
+    const database = openDashboardDatabase(":memory:");
+    try {
+      insertSource(database, "session", 100, "wire");
+      insertStoredRate(database, 7);
+      const promptTokensByLookup = { byRateId: [] as number[], current: [] as number[] };
+      const ledger = new CallLedger(database, {
+        resolve: (_rawModel, _timestampMs, promptTokens) => {
+          promptTokensByLookup.current.push(promptTokens);
+          return quote(1, 7);
+        },
+        resolveByRateId: (_rateId, promptTokens) => {
+          promptTokensByLookup.byRateId.push(promptTokens);
+          return quote(1, 7);
+        },
+      });
+      const identity = { agentId: "main", generation: 0, sessionId: "session", sourcePath: "wire" };
+      const partial: ParsedUsageRecord = {
+        ...createUsageRecord("prompt-tokens"),
+        tokens: {
+          cacheCreation: 1,
+          cacheCreation1h: 20,
+          cacheCreation5m: 300,
+          cacheRead: 4_000,
+          inputOther: 50_000,
+          output: 7,
+        },
+      };
+      ledger.recordUsage(identity, partial);
+      ledger.recordUsage(identity, {
+        ...partial,
+        byteOffset: 20,
+        tokens: { ...partial.tokens, output: 600_000 },
+      });
+
+      expect(promptTokensByLookup).toEqual({ byRateId: [54_321], current: [54_321] });
+    } finally {
+      database.close();
+    }
+  });
+
   test("updates pricing provenance when an unpriced progression gains a rate", () => {
     const database = openDashboardDatabase(":memory:");
     try {

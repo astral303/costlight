@@ -7,6 +7,7 @@ import {
   cacheWriteRateMigration,
   pricingMigration,
   pricingRateActivationMigration,
+  promptLengthTierMigration,
 } from "../pricing/schema";
 import {
   agentIdentityMigration,
@@ -32,6 +33,7 @@ const migrations: readonly DatabaseMigration[] = [
   meteredUsageMigration,
   sessionMetadataCheckpointMigration,
   agentIdentityMigration,
+  promptLengthTierMigration,
 ];
 
 export function openDashboardDatabase(databasePath: string): Database {
