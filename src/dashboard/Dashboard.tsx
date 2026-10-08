@@ -9,7 +9,7 @@ import type {
   SessionFilterOption,
   SessionRow,
 } from "./contracts";
-import { formatTrailingWindow, formatUsdNano } from "./formatting";
+import { formatTrailingWindow, formatUsdNano, formatUsdPerMillion } from "./formatting";
 import {
   initialDashboardFilters,
   type DashboardViewFilters,
@@ -289,7 +289,7 @@ export function Dashboard() {
                   </td>
                   <td><RateBadge confidence={model.pricingConfidence} /> <small>{model.pricingBasis}</small></td>
                   <td className="rate-cell">
-                    {formatRate(model.inputUsdPerMillion)} / {formatRate(model.cacheCreation5mUsdPerMillion)}, {formatRate(model.cacheCreation1hUsdPerMillion)} / {formatRate(model.cacheReadUsdPerMillion)} / {formatRate(model.outputUsdPerMillion)}
+                    {formatUsdPerMillion(model.inputUsdPerMillion)} / {formatUsdPerMillion(model.cacheCreation5mUsdPerMillion)}, {formatUsdPerMillion(model.cacheCreation1hUsdPerMillion)} / {formatUsdPerMillion(model.cacheReadUsdPerMillion)} / {formatUsdPerMillion(model.outputUsdPerMillion)}
                   </td>
                   <td>{formatCompactNumber(model.totalTokens)}</td>
                   <td>{model.callCount.toLocaleString()}</td>
@@ -554,10 +554,6 @@ function SessionAgents({
 
 function RateBadge({ confidence }: { confidence: string }) {
   return <span className={`rate-badge rate-badge--${confidence}`}>{confidence}</span>;
-}
-
-function formatRate(rate: number | null): string {
-  return rate === null ? "—" : `$${rate.toFixed(rate < 1 ? 2 : 2)}`;
 }
 
 function formatPercentage(ratio: number): string {
