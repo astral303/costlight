@@ -61,7 +61,8 @@ export async function detectClaudeAccount(
 
 export function parseClaudeAccountStatus(stdout: string): ClaudeAccountStatus {
   try {
-    const parsed = claudeAuthStatusSchema.parse(JSON.parse(stdout));
+    const statusJson = dropTextBeforeFirstBrace(stdout);
+    const parsed = claudeAuthStatusSchema.parse(JSON.parse(statusJson));
     if (!parsed.loggedIn || parsed.subscriptionType === undefined) {
       throw new Error("Claude is not logged in with a detectable subscription.");
     }
@@ -76,6 +77,12 @@ export function parseClaudeAccountStatus(stdout: string): ClaudeAccountStatus {
     }
     throw error;
   }
+}
+
+/** Managed wrappers around `claude` can print a version line to stdout before the JSON. */
+function dropTextBeforeFirstBrace(stdout: string): string {
+  const objectStart = stdout.indexOf("{");
+  return objectStart === -1 ? stdout : stdout.slice(objectStart);
 }
 
 function spawnClaudeAuthStatus(): ClaudeAuthStatusProcess {
