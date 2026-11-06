@@ -21,6 +21,21 @@ describe("Claude account detection", () => {
     },
   );
 
+  test("skips a wrapper's version line printed before the status JSON", () => {
+    const statusJson = JSON.stringify({
+      apiProvider: "firstParty",
+      authMethod: "claude.ai",
+      loggedIn: true,
+      subscriptionType: "enterprise",
+    }, null, 2);
+
+    expect(parseClaudeAccountStatus(`claude-wrapper 4.2.0\n${statusJson}\n`)).toEqual({
+      apiProvider: "firstParty",
+      authMethod: "claude.ai",
+      subscriptionType: "enterprise",
+    });
+  });
+
   test("rejects logged-out and malformed status responses", () => {
     expect(() => parseClaudeAccountStatus(JSON.stringify({
       apiProvider: "firstParty",
@@ -28,6 +43,7 @@ describe("Claude account detection", () => {
       loggedIn: false,
     }))).toThrow("not logged in");
     expect(() => parseClaudeAccountStatus("not-json")).toThrow("invalid JSON");
+    expect(() => parseClaudeAccountStatus("claude-wrapper 4.2.0\n")).toThrow("invalid JSON");
     expect(() => parseClaudeAccountStatus(JSON.stringify({ loggedIn: true })))
       .toThrow("invalid JSON");
   });
